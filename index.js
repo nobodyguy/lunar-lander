@@ -7,6 +7,7 @@ import {
   seededRandomBetween,
   seededRandomBool,
   transition,
+  UNIT_SYSTEMS,
 } from "./helpers/helpers.js";
 import { makeLander } from "./lander/lander.js";
 import { makeToyLander } from "./lander/toylander.js";
@@ -25,6 +26,7 @@ import { makeChallengeManager } from "./challenge.js";
 import { makeSeededRandom } from "./helpers/seededrandom.js";
 import { makeBonusPointsManager } from "./bonuspoints.js";
 import { makeTheme } from "./theme.js";
+import { makeSettingsManager, manageSettingsDialog } from "./settings.js";
 import { TRANSITION_TO_SPACE } from "./helpers/constants.js";
 import {
   landingScoreDescription,
@@ -44,6 +46,7 @@ const [CTX, canvasWidth, canvasHeight, canvasElement, scaleFactor] =
   });
 const challengeManager = makeChallengeManager();
 const seededRandom = makeSeededRandom();
+const settings = makeSettingsManager();
 
 const appState = makeStateManager()
   .set("CTX", CTX)
@@ -53,7 +56,8 @@ const appState = makeStateManager()
   .set("scaleFactor", scaleFactor)
   .set("audioManager", audioManager)
   .set("challengeManager", challengeManager)
-  .set("seededRandom", seededRandom);
+  .set("seededRandom", seededRandom)
+  .set("settings", settings);
 
 appState.set("theme", makeTheme(appState));
 
@@ -98,6 +102,44 @@ if (!instructions.hasClosedInstructions()) {
   challengeManager.populateCornerInfo();
   terrain.setShowLandingSurfaces();
 }
+
+// SETTINGS
+
+const updateUnitLabels = () => {
+  const { speedLabel, heightLabel } = UNIT_SYSTEMS[settings.get("units")];
+  document
+    .querySelectorAll('[data-unit="speed"]')
+    .forEach((element) => (element.textContent = speedLabel));
+  document
+    .querySelectorAll('[data-unit="height"]')
+    .forEach((element) => (element.textContent = heightLabel));
+};
+updateUnitLabels();
+settings.subscribe((key) => {
+  if (key === "units") updateUnitLabels();
+});
+
+// Whichever controls are live are taken away while the dialog is open, so
+// the arrow keys move between options instead of firing the thrusters. The
+// game is paused rather than left to fall into the terrain behind the dialog.
+// The tutorial can finish while the dialog is open, so the controls to restore
+// are looked up again on close rather than remembered from open.
+const activeControls = () =>
+  instructions.hasClosedInstructions() ? landerControls : toyLanderControls;
+let detachedForSettings = false;
+
+manageSettingsDialog(settings, {
+  onOpen: () => {
+    animationObject.setPaused(true);
+    detachedForSettings = !gameEnded;
+    if (detachedForSettings) activeControls().detachEventListeners();
+  },
+  onClose: () => {
+    animationObject.setPaused(false);
+    if (detachedForSettings) activeControls().attachEventListeners();
+    detachedForSettings = false;
+  },
+});
 
 // MAIN ANIMATION LOOP
 

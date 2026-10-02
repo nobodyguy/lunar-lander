@@ -17,3 +17,8 @@ export const HOVERSLAM_SLACK_MS = 500;
 // and the player would have no way to tell why. This is below the threshold of
 // what anyone would perceive as letting go early.
 export const HOVERSLAM_RELEASE_GRACE_MS = 100;
+
+// Measured in milliseconds of main engine burn. The steering thrusters draw
+// from the same tank at a fraction of the rate.
+export const FUEL_CAPACITY = 10000;
+export const ROTATION_FUEL_RATE = 0.25;

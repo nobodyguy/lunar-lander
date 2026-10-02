@@ -1,4 +1,9 @@
-import { onActivate } from "./helpers/helpers.js";
+import {
+  onActivate,
+  formatSpeed,
+  formatHeight,
+  UNIT_SYSTEMS,
+} from "./helpers/helpers.js";
 
 export const showStatsAndResetControl = (
   state,
@@ -14,21 +19,28 @@ export const showStatsAndResetControl = (
     document.querySelector("#tryAgain").classList.add("loading");
   };
   const canCopyText = navigator && navigator.clipboard;
+  const settings = state.get("settings");
   let hasReset = false;
 
-  const shareText = `Challenge #${state
-    .get("challengeManager")
-    .getChallengeNumber()}
+  // Built on demand so it follows a units change made on this screen
+  const getShareText = () => {
+    const units = settings.get("units");
+    const speedLabel = UNIT_SYSTEMS[units].speedLabel.toLowerCase();
+    const fuel =
+      data.fuelPercent === null ? "" : ` | ${data.fuelPercent}% fuel left`;
+
+    return `Challenge #${state.get("challengeManager").getChallengeNumber()}
 ${data.scoreForDisplay} point ${data.landed ? "landing" : "crash"}
 
 ${data.scoreDescription}
 https://ehmorris.com/lander/
 
-${data.speed}mph | ${data.angle}° | ${data.rotationsFormatted} flip${
-    data.rotationsInt === 1 ? "" : "s"
-  } | ${data.duration} | ${data.engineActivations} burn${
-    data.engineActivations === 1 ? "" : "s"
-  }`;
+${formatSpeed(data.speedMph, units)}${speedLabel} | ${data.angle}° | ${
+      data.rotationsFormatted
+    } flip${data.rotationsInt === 1 ? "" : "s"} | ${data.duration} | ${
+      data.engineActivations
+    } burn${data.engineActivations === 1 ? "" : "s"}${fuel}`;
+  };
 
   const hideStats = () => {
     document.querySelector("#endGameStats").classList.remove("show");
@@ -41,9 +53,9 @@ ${data.speed}mph | ${data.angle}° | ${data.rotationsFormatted} flip${
     // This timeout enables a CSS transition to play from left: 0 to the
     // override we're applying
     setTimeout(() => {
-      meter.querySelector(
-        "[data-percent-position]"
-      ).style.left = `${percentPosition}%`;
+      meter
+        .querySelector("[data-percent-position]")
+        .style.setProperty("--meter-progress", percentPosition);
     }, 0);
   };
 
@@ -51,7 +63,9 @@ ${data.speed}mph | ${data.angle}° | ${data.rotationsFormatted} flip${
     const meter = document.querySelector(`[data-stat-name="${name}"]`);
     meter.querySelector("[data-value]").textContent = "";
 
-    meter.querySelector("[data-percent-position]").style.left = `0`;
+    meter
+      .querySelector("[data-percent-position]")
+      .style.setProperty("--meter-progress", 0);
   };
 
   const populateStats = (data) => {
@@ -60,15 +74,18 @@ ${data.speed}mph | ${data.angle}° | ${data.rotationsFormatted} flip${
     document.querySelector("#type").textContent = data.landed
       ? "landing"
       : "crash";
-    populateMeter("speed", data.speedPercent, data.speed);
+    populateMeter("speed", data.speedPercent, "");
     populateMeter("angle", data.anglePercent, data.angle);
+    populateUnitValues();
 
     document.querySelector("#duration").textContent = data.duration;
     document.querySelector("#rotations").textContent = data.rotationsFormatted;
-    document.querySelector("#maxSpeed").textContent = data.maxSpeed;
-    document.querySelector("#maxHeight").textContent = data.maxHeight;
     document.querySelector("#engineActivations").textContent =
       data.engineActivationsFormatted;
+
+    const fuelRow = document.querySelector("#fuelLeftRow");
+    fuelRow.hidden = data.fuelPercent === null;
+    document.querySelector("#fuelLeft").textContent = `${data.fuelPercent}%`;
 
     if (hasKeyboard) {
       document.querySelector("#tryAgainText").textContent =
@@ -88,15 +105,31 @@ ${data.speed}mph | ${data.angle}° | ${data.rotationsFormatted} flip${
     }
   };
 
+  // Separate from populateStats so a units change can redraw just these
+  // without replaying the meter animation
+  function populateUnitValues() {
+    const units = settings.get("units");
+    document.querySelector('[data-stat-name="speed"] [data-value]').textContent =
+      formatSpeed(data.speedMph, units);
+    document.querySelector("#maxSpeed").textContent = formatSpeed(
+      data.maxSpeedMph,
+      units
+    );
+    document.querySelector("#maxHeight").textContent = formatHeight(
+      data.maxHeightFt,
+      units
+    );
+  }
+
   function showShareSheet() {
     Promise.resolve()
-      .then(() => navigator.share({ text: shareText }))
+      .then(() => navigator.share({ text: getShareText() }))
       .catch(() => {});
   }
 
   function copyShareStats() {
     Promise.resolve()
-      .then(() => navigator.clipboard.writeText(shareText))
+      .then(() => navigator.clipboard.writeText(getShareText()))
       .then(() => {
         const button = document.querySelector("#copyText span");
         if (button) {
@@ -107,8 +140,9 @@ ${data.speed}mph | ${data.angle}° | ${data.rotationsFormatted} flip${
       .catch(() => {});
   }
 
-  function tryAgainOnSpace({ code }) {
-    if (code === "Space") tryAgain();
+  // Space inside the settings dialog belongs to its controls
+  function tryAgainOnSpace({ code, target }) {
+    if (code === "Space" && !target.closest("dialog")) tryAgain();
   }
 
   // Collected so that every listener attached for this game-over screen is
@@ -117,6 +151,12 @@ ${data.speed}mph | ${data.angle}° | ${data.rotationsFormatted} flip${
   let detachers = [];
 
   const attachEventListeners = () => {
+    detachers.push(
+      settings.subscribe((key) => {
+        if (key === "units") populateUnitValues();
+      })
+    );
+
     // Delay showing the reset button in case the user is actively tapping
     // in that area for thrust
     setTimeout(() => {

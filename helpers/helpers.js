@@ -42,6 +42,8 @@ export const animate = (drawFunc) => {
   let elapsed = 0;
   let previousTimestamp = false;
 
+  let paused = false;
+
   const resetStartTime = () => (elapsed = 0);
 
   const drawFuncContainer = (timestamp) => {
@@ -58,6 +60,10 @@ export const animate = (drawFunc) => {
 
     // Accumulated from clamped deltas rather than read off the wall clock, so
     // that time spent in a hidden tab doesn't inflate the reported duration.
+    // While paused the last frame simply stays on the canvas. The timestamp
+    // above still advances, so resuming doesn't count the pause as a frame.
+    if (paused) return;
+
     elapsed += deltaTime;
 
     drawFunc(elapsed, deltaTime);
@@ -65,7 +71,7 @@ export const animate = (drawFunc) => {
 
   window.requestAnimationFrame(drawFuncContainer);
 
-  return { resetStartTime };
+  return { resetStartTime, setPaused: (value) => (paused = value) };
 };
 
 // Intl.DurationFormat only became widely available in late 2024, and building
@@ -236,24 +242,35 @@ export const formatNumber = (value, decimals = 0) => {
   return formatter ? formatter.format(value) : value.toFixed(decimals);
 };
 
-export const velocityInMPH = (velocity, decimals = 1) =>
-  formatNumber(getVectorVelocity(velocity) * VELOCITY_MULTIPLIER, decimals);
+export const UNIT_SYSTEMS = {
+  metric: { speedLabel: "KM/H", heightLabel: "M", perMph: 1.609344, perFoot: 0.3048 },
+  imperial: { speedLabel: "MPH", heightLabel: "FT", perMph: 1, perFoot: 1 },
+};
 
-const feetFromPixels = (yPos, groundedHeight) =>
-  -1 * Math.round((yPos - groundedHeight) / 3.5);
+// The game was tuned in imperial, so MPH and FT stay the canonical values that
+// get stored and reported; other systems are only applied when formatting.
+export const velocityInMPH = (velocity) =>
+  getVectorVelocity(velocity) * VELOCITY_MULTIPLIER;
 
 export const heightInFeet = (yPos, groundedHeight) =>
-  formatNumber(feetFromPixels(yPos, groundedHeight));
+  -(yPos - groundedHeight) / 3.5;
+
+export const formatSpeed = (mph, units, decimals = 1) =>
+  formatNumber(mph * UNIT_SYSTEMS[units].perMph, decimals);
+
+// `|| 0` turns -0 into 0, which would otherwise format as "-0"
+export const formatHeight = (feet, units) =>
+  formatNumber(Math.round(feet * UNIT_SYSTEMS[units].perFoot) || 0);
 
 const compactFormatter = makeNumberFormatter({
   notation: "compact",
   compactDisplay: "short",
 });
 
-export const heightInFeetCompact = (yPos, groundedHeight) => {
-  const feet = feetFromPixels(yPos, groundedHeight);
+export const formatHeightCompact = (feet, units) => {
+  const value = Math.round(feet * UNIT_SYSTEMS[units].perFoot) || 0;
 
-  return compactFormatter ? compactFormatter.format(feet) : formatNumber(feet);
+  return compactFormatter ? compactFormatter.format(value) : formatNumber(value);
 };
 
 const isDigit = (character) => /\p{Nd}/u.test(character);

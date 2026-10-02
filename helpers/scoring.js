@@ -100,8 +100,8 @@ export const isHoverslam = ({
   burnSlackMs <= HOVERSLAM_SLACK_MS;
 
 // Shown in place of the score copy when the landing was earned this way. The
-// engine has no throttle and no fuel limit, so every successful hoverslam is the
-// same maneuver — there are no degrees of it worth different copy.
+// engine has no throttle, so every successful hoverslam is the same maneuver —
+// there are no degrees of it worth different copy.
 export const hoverslamDescription = "Hoverslam!";
 
 export const destroyedDescription = () => {

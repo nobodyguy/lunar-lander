@@ -7,7 +7,10 @@ import {
   getAngleDeltaUpright,
   getAngleDeltaUprightWithSign,
   heightInFeet,
-  heightInFeetCompact,
+  formatSpeed,
+  formatHeight,
+  formatHeightCompact,
+  UNIT_SYSTEMS,
   percentProgress,
   formatDuration,
   formatNumber,
@@ -28,6 +31,8 @@ import {
   INTERVAL,
   TRANSITION_TO_SPACE,
   HOVERSLAM_RELEASE_GRACE_MS,
+  FUEL_CAPACITY,
+  ROTATION_FUEL_RATE,
 } from "../helpers/constants.js";
 import { makeLanderExplosion } from "./explosion.js";
 import { makeConfetti } from "./confetti.js";
@@ -44,6 +49,7 @@ export const makeLander = (state, onGameEnd) => {
   const canvasHeight = state.get("canvasHeight");
   const audioManager = state.get("audioManager");
   const bonusPointsManager = state.get("bonusPointsManager");
+  const settings = state.get("settings");
 
   // Use grounded height to approximate distance from ground
   let _landingData = state.get("terrain").getLandingData();
@@ -60,6 +66,7 @@ export const makeLander = (state, onGameEnd) => {
   let _rotatingLeft;
   let _rotatingRight;
   let _shieldActive;
+  let _fuel;
 
   let _timeSinceStart;
   let gameEndData;
@@ -105,6 +112,7 @@ export const makeLander = (state, onGameEnd) => {
     _rotatingLeft = false;
     _rotatingRight = false;
     _shieldActive = false;
+    _fuel = FUEL_CAPACITY;
 
     _timeSinceStart = 0;
     gameEndData = false;
@@ -127,6 +135,32 @@ export const makeLander = (state, onGameEnd) => {
   resetProps();
 
   const _isFixedPositionInSpace = () => _position.y < 0;
+
+  // Only drained while the setting is on, so switching it off and back on
+  // mid-flight can't be used to refill the tank
+  const _fuelLimited = () => settings.get("fuel") === "limited";
+  const _hasFuel = () => !_fuelLimited() || _fuel > 0;
+  const _fuelPercent = () => Math.ceil((_fuel / FUEL_CAPACITY) * 100);
+
+  const _burnFuel = (deltaTime) => {
+    if (!_fuelLimited()) return;
+
+    const rate =
+      (_engineOn ? 1 : 0) +
+      (_rotatingLeft ? ROTATION_FUEL_RATE : 0) +
+      (_rotatingRight ? ROTATION_FUEL_RATE : 0);
+    _fuel = Math.max(0, _fuel - rate * deltaTime);
+
+    if (_fuel === 0 && rate > 0) {
+      if (_engineOn) _engineOffAt = _timeSinceStart;
+      _engineOn = false;
+      _rotatingLeft = false;
+      _rotatingRight = false;
+      audioManager.stopEngineSound();
+      audioManager.stopBoosterSound1();
+      audioManager.stopBoosterSound2();
+    }
+  };
 
   // How much longer the player could have coasted at this instant before the
   // engine had to come on. Sampled when the engine is first started, to judge
@@ -157,14 +191,15 @@ export const makeLander = (state, onGameEnd) => {
     gameEndData = {
       landed,
       struckByAsteroid,
-      speed: velocityInMPH(_velocity),
+      speedMph: velocityInMPH(_velocity),
       angle: formatNumber(getAngleDeltaUpright(_angle), 1),
       duration: formatDuration(_timeSinceStart),
       durationMs: Math.round(_timeSinceStart),
       rotationsInt: _rotationCount,
       rotationsFormatted: formatNumber(_rotationCount),
-      maxSpeed: velocityInMPH(_maxVelocity),
-      maxHeight: heightInFeet(_maxHeight, _groundedHeight),
+      maxSpeedMph: velocityInMPH(_maxVelocity),
+      maxHeightFt: heightInFeet(_maxHeight, _groundedHeight),
+      fuelPercent: _fuelLimited() ? _fuelPercent() : null,
       speedPercent: percentProgress(
         0,
         CRASH_VELOCITY,
@@ -226,12 +261,13 @@ export const makeLander = (state, onGameEnd) => {
       DD_RUM.addAction("score", {
         score: gameEndData.landerScore,
         landed: !!landed,
-        speed: gameEndData.speed,
+        speed: formatSpeed(gameEndData.speedMph, "imperial"),
         angle: gameEndData.angle,
         duration: gameEndData.durationMs,
         flips: gameEndData.rotationsInt,
-        maxSpeed: gameEndData.maxSpeed,
-        maxHeight: gameEndData.maxHeight,
+        maxSpeed: formatSpeed(gameEndData.maxSpeedMph, "imperial"),
+        maxHeight: formatHeight(gameEndData.maxHeightFt, "imperial"),
+        fuelPercent: gameEndData.fuelPercent,
         engineActivations: gameEndData.engineActivations,
         burnSlackMs: gameEndData.burnSlackMs,
         hoverslam: gameEndData.hoverslam,
@@ -287,6 +323,8 @@ export const makeLander = (state, onGameEnd) => {
         _velocity.y -= deltaTimeMultiplier * (_thrust * Math.cos(_angle));
       }
 
+      _burnFuel(deltaTime);
+
       // Log new rotations
       const uprightRotations = Math.floor((_angle + Math.PI) / (Math.PI * 2));
       if (
@@ -318,7 +356,7 @@ export const makeLander = (state, onGameEnd) => {
       }
 
       // Record bonus points for increments of height and speed
-      // Ints here are pixels / raw values, not MPH or FT
+      // Ints here are pixels / raw values, not display units
       if (
         _position.y <
         _heightMilestone + Math.min(-3500, _heightMilestone * 3)
@@ -377,12 +415,20 @@ export const makeLander = (state, onGameEnd) => {
     }
   };
 
+  const _fuelColor = () =>
+    _fuelPercent() <= 20 ? "rgb(255, 0, 0)" : state.get("theme").infoFontColor;
+
+  const _fuelText = () => (_fuel > 0 ? `FUEL ${_fuelPercent()}%` : "NO FUEL");
+
   const _hudFont = "400 10px -apple-system, BlinkMacSystemFont, sans-serif";
 
   const _drawHUD = () => {
+    const units = settings.get("units");
+    const { speedLabel, heightLabel } = UNIT_SYSTEMS[units];
+
     CTX.save();
     CTX.font = _hudFont;
-    const textWidth = CTX.measureText("100.0 MPH").width + 2;
+    const textWidth = CTX.measureText(`100.0 ${speedLabel}`).width + 2;
     const xPosBasis =
       Math.abs(_velocity.x) > 6
         ? canvasWidth / 2 - textWidth / 2
@@ -402,7 +448,7 @@ export const makeLander = (state, onGameEnd) => {
     // Draw HUD text
     CTX.fillStyle = speedColor;
     CTX.fillText(
-      `${velocityInMPH(_velocity)} MPH`,
+      `${formatSpeed(velocityInMPH(_velocity), units)} ${speedLabel}`,
       xPosBasis,
       yPosBasis - lineHeight
     );
@@ -414,10 +460,14 @@ export const makeLander = (state, onGameEnd) => {
     );
     CTX.fillStyle = state.get("theme").infoFontColor;
     CTX.fillText(
-      `${heightInFeet(_position.y, _groundedHeight)} FT`,
+      `${formatHeight(heightInFeet(_position.y, _groundedHeight), units)} ${heightLabel}`,
       xPosBasis,
       yPosBasis + lineHeight
     );
+    if (_fuelLimited()) {
+      CTX.fillStyle = _fuelColor();
+      CTX.fillText(_fuelText(), xPosBasis, yPosBasis + lineHeight * 2);
+    }
 
     // Draw hud rotation direction arrow
     const arrowHeight = 7;
@@ -465,6 +515,8 @@ export const makeLander = (state, onGameEnd) => {
   };
 
   const _drawBottomHUD = () => {
+    const units = settings.get("units");
+    const { speedLabel, heightLabel } = UNIT_SYSTEMS[units];
     const yPadding = LANDER_HEIGHT;
     const xPadding = LANDER_HEIGHT;
     const gravity = GRAVITY;
@@ -494,21 +546,30 @@ export const makeLander = (state, onGameEnd) => {
 
     CTX.textAlign = "left";
     _drawReadout(
-      velocityInMPH(_velocity, 0),
-      "MPH",
+      formatSpeed(velocityInMPH(_velocity), units, 0),
+      speedLabel,
       xPadding,
       canvasHeight - yPadding
     );
 
     CTX.textAlign = "right";
     _drawReadout(
-      heightInFeetCompact(_position.y, _groundedHeight),
-      "FT",
+      formatHeightCompact(heightInFeet(_position.y, _groundedHeight), units),
+      heightLabel,
       canvasWidth - xPadding,
       canvasHeight - yPadding
     );
 
     CTX.textAlign = "center";
+    if (_fuelLimited()) {
+      CTX.save();
+      CTX.fillStyle = _fuelColor();
+      CTX.letterSpacing = "1px";
+      CTX.font = "400 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif";
+      CTX.fillText(_fuelText(), canvasWidth / 2, canvasHeight - yPadding - 56);
+      CTX.restore();
+    }
+
     if (secondsUntilTerrain < 20) {
       CTX.fillStyle = "rgb(255, 0, 0)";
       _drawReadout(
@@ -694,7 +755,10 @@ export const makeLander = (state, onGameEnd) => {
     // Only off→on transitions count as an activation. Keydown has no repeat
     // guard, and multi-touch or a finger sliding between columns can re-fire the
     // center zone, so a held engine would otherwise register hundreds of starts.
+    // These return false when the tank is empty, so the controls know to keep
+    // the thruster sounds off
     engineOn: () => {
+      if (!_hasFuel()) return false;
       if (_engineOn || gameEndData) return;
       _engineOn = true;
       if (++_engineActivations === 1) {
@@ -706,8 +770,8 @@ export const makeLander = (state, onGameEnd) => {
       _engineOn = false;
       _engineOffAt = _timeSinceStart;
     },
-    rotateLeft: () => (_rotatingLeft = true),
-    rotateRight: () => (_rotatingRight = true),
+    rotateLeft: () => _hasFuel() && (_rotatingLeft = true),
+    rotateRight: () => _hasFuel() && (_rotatingRight = true),
     stopLeftRotation: () => (_rotatingLeft = false),
     stopRightRotation: () => (_rotatingRight = false),
   };

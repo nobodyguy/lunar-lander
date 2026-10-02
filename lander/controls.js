@@ -21,16 +21,14 @@ export const makeControls = (state, lander, audioManager) => {
 
   let hasKeyboard = false;
 
+  // The lander answers false when it is out of fuel and the thruster can't fire
   const activateZone = (zoneName) => {
     if (zoneName === "left") {
-      lander.rotateLeft();
-      audioManager.playBoosterSound1();
+      if (lander.rotateLeft() !== false) audioManager.playBoosterSound1();
     } else if (zoneName === "center") {
-      lander.engineOn();
-      audioManager.playEngineSound();
+      if (lander.engineOn() !== false) audioManager.playEngineSound();
     } else {
-      lander.rotateRight();
-      audioManager.playBoosterSound2();
+      if (lander.rotateRight() !== false) audioManager.playBoosterSound2();
     }
   };
 

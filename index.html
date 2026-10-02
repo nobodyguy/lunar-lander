@@ -63,7 +63,7 @@
         <div class="label">Speed</div>
         <div class="meter" data-stat-name="speed">
           <div class="cursor" data-percent-position="">
-            <span data-value=""></span><span class="unit">&nbsp;MPH</span>
+            <span data-value=""></span><span class="unit">&nbsp;<span data-unit="speed"></span></span>
           </div>
         </div>
       </div>
@@ -86,15 +86,19 @@
         </div>
         <div class="tableRow">
           <span class="tableLabel">Max Speed</span>
-          <span class="tableValue"><span id="maxSpeed"></span> MPH</span>
+          <span class="tableValue"><span id="maxSpeed"></span> <span data-unit="speed"></span></span>
         </div>
         <div class="tableRow">
           <span class="tableLabel">Max Height</span>
-          <span class="tableValue"><span id="maxHeight"></span> FT</span>
+          <span class="tableValue"><span id="maxHeight"></span> <span data-unit="height"></span></span>
         </div>
         <div class="tableRow">
           <span class="tableLabel">Engine Starts</span>
           <span class="tableValue" id="engineActivations"></span>
+        </div>
+        <div class="tableRow" id="fuelLeftRow" hidden>
+          <span class="tableLabel">Fuel Left</span>
+          <span class="tableValue" id="fuelLeft"></span>
         </div>
       </div>
       <div class="buttonContainer">
@@ -159,6 +163,37 @@
     <div id="tally" class="topRightCorner">
       L<span id="landingTotal"></span> C<span id="crashTotal"></span>
     </div>
+    <button id="openSettings" class="settingsButton" type="button" aria-label="Settings" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    </button>
+    <dialog id="settings" class="settingsSheet" aria-labelledby="settingsTitle">
+      <form method="dialog" class="settingsBody">
+        <div class="settingsHeader">
+          <h2 id="settingsTitle">Settings</h2>
+          <span class="settingsPaused">Paused</span>
+        </div>
+        <fieldset class="settingsGroup">
+          <legend>Units</legend>
+          <div class="segmented">
+            <label><input type="radio" name="units" value="metric" /><span>Metric</span></label>
+            <label><input type="radio" name="units" value="imperial" /><span>Imperial</span></label>
+          </div>
+          <p class="settingsHint">Metric shows km/h and meters. Imperial shows mph and feet.</p>
+        </fieldset>
+        <fieldset class="settingsGroup">
+          <legend>Fuel</legend>
+          <div class="segmented">
+            <label><input type="radio" name="fuel" value="unlimited" /><span>Unlimited</span></label>
+            <label><input type="radio" name="fuel" value="limited" /><span>Limited</span></label>
+          </div>
+          <p class="settingsHint">A limited tank holds 10 seconds of main engine burn. The steering thrusters use fuel too, but slower.</p>
+        </fieldset>
+        <button class="button settingsDone" type="submit">Done</button>
+      </form>
+    </dialog>
     <script src="index.js" type="module"></script>
     <script>
       (function (h, o, u, n, d) {
