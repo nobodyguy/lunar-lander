@@ -422,6 +422,18 @@ export const makeLander = (state, onGameEnd) => {
 
   const _hudFont = "400 10px -apple-system, BlinkMacSystemFont, sans-serif";
 
+  // Measured from the ground under the lander rather than _groundedHeight, the
+  // average terrain line. Landing pads always sit at or below that average, so
+  // against it every touchdown read as a negative height.
+  const _altitudeInFeet = () =>
+    Math.max(
+      0,
+      heightInFeet(
+        _position.y + LANDER_HEIGHT / 2,
+        state.get("terrain").getGroundHeightAtX(_position.x)
+      )
+    );
+
   const _drawHUD = () => {
     const units = settings.get("units");
     const { speedLabel, heightLabel } = UNIT_SYSTEMS[units];
@@ -460,7 +472,7 @@ export const makeLander = (state, onGameEnd) => {
     );
     CTX.fillStyle = state.get("theme").infoFontColor;
     CTX.fillText(
-      `${formatHeight(heightInFeet(_position.y, _groundedHeight), units)} ${heightLabel}`,
+      `${formatHeight(_altitudeInFeet(), units)} ${heightLabel}`,
       xPosBasis,
       yPosBasis + lineHeight
     );
@@ -554,7 +566,7 @@ export const makeLander = (state, onGameEnd) => {
 
     CTX.textAlign = "right";
     _drawReadout(
-      formatHeightCompact(heightInFeet(_position.y, _groundedHeight), units),
+      formatHeightCompact(_altitudeInFeet(), units),
       heightLabel,
       canvasWidth - xPadding,
       canvasHeight - yPadding

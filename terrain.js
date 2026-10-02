@@ -206,11 +206,24 @@ export const makeTerrain = (state) => {
     );
   };
 
+  // The surface y directly beneath x, interpolated along the terrain segment
+  const getGroundHeightAtX = (x) => {
+    const segmentWidth = canvasWidth / numPoints;
+    const segmentNumber = Math.max(
+      0,
+      Math.min(Math.floor(x / segmentWidth), terrainPathArray.length - 2)
+    );
+    const start = terrainPathArray[segmentNumber];
+    const end = terrainPathArray[segmentNumber + 1];
+    return start.y + (end.y - start.y) * ((x - start.x) / segmentWidth);
+  };
+
   return {
     draw,
     reGenerate,
     getLandingData,
     getSegmentAngleAtX,
+    getGroundHeightAtX,
     setShowLandingSurfaces: () => (showLandingSurfaces = true),
   };
 };
