@@ -1,0 +1,14 @@
+{
+  "name": "lunar-lander",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "esbuild --servedir=. --serve=8000 --watch=forever",
+    "build": "node build.mjs",
+    "preview": "npm run build && esbuild --servedir=dist --serve=8000 --watch=forever"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "html-minifier-terser": "^7.2.0"
+  }
+}
