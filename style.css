@@ -192,6 +192,11 @@ li.strikethrough {
   position: relative;
 }
 
+/* display: flex above would otherwise override the hidden attribute */
+.tableRow[hidden] {
+  display: none;
+}
+
 .tableRow::before {
   content: "";
   position: absolute;

@@ -18,7 +18,7 @@ const OPTIONS = {
 
 const DEFAULTS = {
   units: "metric",
-  fuel: "unlimited",
+  fuel: "limited",
   controls: "standard",
   device: "progressor",
   difficulty: "medium",
