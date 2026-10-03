@@ -1,7 +1,7 @@
 import {
   seededShuffleArray,
   seededRandomBetween,
-  getLineAngle,
+  getPolylineContact,
 } from "./helpers/helpers.js";
 import { LANDER_WIDTH } from "./helpers/constants.js";
 
@@ -196,21 +196,8 @@ export const makeTerrain = (state) => {
     };
   };
 
-  const getSegmentAngleAtX = (x) => {
-    // Clamped so that a collision at exactly canvasWidth cannot read past the
-    // end of the array and hand getLineAngle an undefined coordinate.
-    const segmentNumber = Math.max(
-      0,
-      Math.min(
-        Math.floor(x / (canvasWidth / numPoints)),
-        terrainPathArray.length - 2
-      )
-    );
-    return getLineAngle(
-      terrainPathArray[segmentNumber],
-      terrainPathArray[segmentNumber + 1]
-    );
-  };
+  const getSurfaceContact = (point) =>
+    getPolylineContact(terrainPathArray, point);
 
   // The surface y directly beneath x, interpolated along the terrain segment
   const getGroundHeightAtX = (x) => {
@@ -228,7 +215,7 @@ export const makeTerrain = (state) => {
     draw,
     reGenerate,
     getLandingData,
-    getSegmentAngleAtX,
+    getSurfaceContact,
     getGroundHeightAtX,
     setShowLandingSurfaces: () => (showLandingSurfaces = true),
   };

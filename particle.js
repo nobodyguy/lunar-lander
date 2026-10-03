@@ -13,28 +13,24 @@ export const makeParticle = (
   onCollide = () => {}
 ) => {
   const CTX = state.get("CTX");
-  const scaleFactor = state.get("scaleFactor");
   const terrain = state.get("terrain");
   const landingData = state.get("terrain").getLandingData();
   const gravity = GRAVITY;
   const friction = 0.3;
   const rotationDirection = randomBool();
+  // Pieces collide as a circle a bit smaller than their drawn shape
+  const radius = Math.sqrt(width ** 2 + height ** 2) / 3;
 
   let position = { ...startPosition };
   let positionLog = [];
-  let velocity = { ...startVelocity };
+  let velocity = {
+    // Spread pieces sideways a little according to their starting direction
+    x: startVelocity.x + Math.cos(Math.atan2(startVelocity.y, startVelocity.x)),
+    y: startVelocity.y,
+  };
   let rotationAngle = Math.PI * 2;
   let rotationVelocity = 0;
-  let headingDeg = Math.atan2(velocity.y, velocity.x) * (180 / Math.PI);
   let stopped = false;
-
-  // Recomputing this on every tick discarded the damping applied on collision
-  // below, so debris kept its full horizontal speed and slid across the flat
-  // landing pads forever. Reapply it only when the heading actually changes.
-  const applyHeadingToVelocityX = () => {
-    velocity.x = startVelocity.x + Math.cos((headingDeg * Math.PI) / 180);
-  };
-  applyHeadingToVelocityX();
 
   const update = (deltaTime) => {
     const deltaTimeMultiplier = deltaTime / INTERVAL;
@@ -50,34 +46,40 @@ export const makeParticle = (
       y: position.y + deltaTimeMultiplier * velocity.y,
     };
 
-    if (useTerrain && prospectiveNextPosition.y >= landingData.terrainHeight) {
-      const collisionPoint = isShapeInPath(
-        CTX,
-        scaleFactor,
-        landingData.terrainPath2D,
-        prospectiveNextPosition.x,
-        prospectiveNextPosition.y,
-        width,
-        height
-      );
+    if (
+      useTerrain &&
+      prospectiveNextPosition.y + radius >= landingData.terrainHeight
+    ) {
+      const contact = terrain.getSurfaceContact(prospectiveNextPosition);
 
-      if (collisionPoint) {
-        const collisionAngle = terrain.getSegmentAngleAtX(collisionPoint.x);
+      if (contact.distance < radius) {
+        const { normal } = contact;
+        const normalSpeed = velocity.x * normal.x + velocity.y * normal.y;
 
-        if (Math.abs(collisionAngle) > 20) {
-          headingDeg = angleReflect(headingDeg, collisionAngle);
-          applyHeadingToVelocityX();
+        // Bounce off the surface the piece actually touched, damping both the
+        // bounce and the slide. Bouncing off the segment under whichever
+        // sample point hit first sent pieces into the far side of peaks.
+        if (normalSpeed < 0) {
+          const slide = {
+            x: velocity.x - normalSpeed * normal.x,
+            y: velocity.y - normalSpeed * normal.y,
+          };
+          velocity = {
+            x: slide.x * (1 - friction) - normalSpeed * friction * normal.x,
+            y: slide.y * (1 - friction) - normalSpeed * friction * normal.y,
+          };
         }
 
-        velocity.x = velocity.x * -friction;
-        velocity.y = velocity.y * -friction;
+        // Push the piece back out of the ground along the normal. Without
+        // this, a piece that ended a step underground collided on every
+        // later step, never moved again and was left buried.
+        const overlap = radius - contact.distance;
+        prospectiveNextPosition = {
+          x: prospectiveNextPosition.x + overlap * normal.x,
+          y: prospectiveNextPosition.y + overlap * normal.y,
+        };
 
         if (countSimilarCoordinates(positionLog) > 5) stopped = true;
-
-        prospectiveNextPosition = {
-          x: position.x + deltaTimeMultiplier * velocity.x,
-          y: position.y + deltaTimeMultiplier * velocity.y,
-        };
 
         // Provide the point just prior to collision so particles reflect off
         // terrain rather than getting stuck in it
@@ -127,38 +129,9 @@ export const makeParticle = (
   return { draw, getPosition: () => position, getVelocity: () => velocity };
 };
 
-function angleReflect(incidenceAngle, surfaceAngle) {
-  const a = surfaceAngle * 2 - incidenceAngle;
-  return a >= 360 ? a - 360 : a < 0 ? a + 360 : a;
-}
-
 function countSimilarCoordinates(arr) {
   return (
     arr.length -
     new Set(arr.map(({ x, y }) => `${Math.round(x)}|${Math.round(y)}`)).size
-  );
-}
-
-function isShapeInPath(
-  CTX,
-  scaleFactor,
-  path,
-  topLeftX,
-  topLeftY,
-  width,
-  height
-) {
-  const radius = Math.sqrt(width ** 2 + height ** 2) / 3;
-  const numCollisionPoints = 5;
-  const dots = new Array(numCollisionPoints).fill().map((_, i) => {
-    const angle = (360 / numCollisionPoints) * i;
-    return {
-      x: topLeftX + radius * Math.cos((angle * Math.PI) / 180),
-      y: topLeftY + radius * Math.sin((angle * Math.PI) / 180),
-    };
-  });
-
-  return dots.find(({ x, y }) =>
-    CTX.isPointInPath(path, x * scaleFactor, y * scaleFactor)
   );
 }

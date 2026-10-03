@@ -374,6 +374,62 @@ export const getLineAngle = (startCoordinate, endCoordinate) => {
   return theta;
 };
 
+// The nearest point on a left-to-right surface polyline (ground below it),
+// how far `point` is from it (negative when underground) and the unit normal
+// pointing out of the ground towards where `point` should be. Near a peak the
+// nearest point is the vertex itself, so the normal there points away from
+// the tip rather than along either slope.
+export const getPolylineContact = (points, point) => {
+  let closest = null;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const start = points[i];
+    const end = points[i + 1];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const t = Math.max(
+      0,
+      Math.min(
+        1,
+        ((point.x - start.x) * dx + (point.y - start.y) * dy) /
+          (dx ** 2 + dy ** 2)
+      )
+    );
+    const x = start.x + t * dx;
+    const y = start.y + t * dy;
+    const distance = Math.hypot(point.x - x, point.y - y);
+
+    if (!closest || distance < closest.distance) {
+      const length = Math.hypot(dx, dy);
+      closest = { x, y, distance, segmentNormal: { x: dy / length, y: -dx / length } };
+    }
+  }
+
+  const segmentAtX = points.findIndex(
+    (_, i) => i < points.length - 1 && point.x <= points[i + 1].x
+  );
+  const segment = segmentAtX === -1 ? points.length - 2 : segmentAtX;
+  const start = points[segment];
+  const end = points[segment + 1];
+  const groundY = start.y + (end.y - start.y) * ((point.x - start.x) / (end.x - start.x));
+  const underground = point.y > groundY;
+
+  const normal =
+    closest.distance < 1e-6
+      ? closest.segmentNormal
+      : {
+          x: ((point.x - closest.x) / closest.distance) * (underground ? -1 : 1),
+          y: ((point.y - closest.y) / closest.distance) * (underground ? -1 : 1),
+        };
+
+  return {
+    x: closest.x,
+    y: closest.y,
+    distance: underground ? -closest.distance : closest.distance,
+    normal,
+  };
+};
+
 export const seededShuffleArray = (array, seededRandom) => {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(seededRandom.getSeededRandom() * (i + 1));
