@@ -1,8 +1,13 @@
-# About
+# Lunar Lander
+*You are a space traveler who set out for the Moon to mine a new, low-gravity type of magnesium carbonate.*
+
+## About
 
 A plain JavaScript, HTML, and CSS game. Its one dependency, [grip-connect](https://github.com/Stevie-Ray/hangtime-grip-connect), talks to Bluetooth force sensors.
 
----
+## Credits
+
+This project is based on [ehmorris/lunar-lander](https://github.com/ehmorris/lunar-lander). Huge thanks to the original authors for the game this builds on.
 
 **Code and design: Edwin Morris**
 
@@ -12,15 +17,15 @@ Thanks to all Github contributors
 
 And thanks to [this guide](http://students.cs.ucl.ac.uk/schoolslab/projects/HT5/) for help with the basics
 
-# Running
+## Running
 
-Deployed to ehmorris.com via a git submodule.
+[Online demo](https://nobodyguy.github.io/lunar-lander/)
 
 `npm start` serves the game at http://localhost:8000, bundling on each request. See `launch.json` to run it from VS Code.
 
 `npm test` runs the unit tests, and `npm run sim` prints how the force sensor autopilot fares on each difficulty in a headless simulation (`npm run sim -- 200` for more runs).
 
-# Force sensor controls
+## Force sensor controls
 
 In Settings, Controls → Force sensor flies the lander with a Bluetooth force sensor or hanging scale (Tindeq Progressor by default) through the Web Bluetooth API, so it needs Chrome or Edge. Pulling fires the main engine, with thrust following the pull; an autopilot (`lander/autopilot.js`) works the steering thrusters to reach the nearest pad and level out for touchdown. A fresh pull also plays again after a round.
 
@@ -34,6 +39,3 @@ The round holds still while the sensor isn't streaming, including if it drops ou
 
 To try it without a sensor, open the game with `?sensor-sim` and pick the Simulator device: hold the up arrow to pull.
 
----
-
-Please [use discussions](https://github.com/ehmorris/lunar-lander/discussions) to post ideas, feedback, or to share scores!

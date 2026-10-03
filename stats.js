@@ -33,7 +33,7 @@ export const showStatsAndResetControl = (
 ${data.scoreForDisplay} point ${data.landed ? "landing" : "crash"}
 
 ${data.scoreDescription}
-https://ehmorris.com/lander/
+https://nobodyguy.github.io/lunar-lander/
 
 ${formatSpeed(data.speedMph, units)}${speedLabel} | ${data.angle}° | ${
       data.rotationsFormatted
