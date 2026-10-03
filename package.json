@@ -3,12 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "esbuild --servedir=. --serve=8000 --watch=forever",
+    "start": "esbuild index.js --bundle --format=esm --sourcemap --outdir=. --allow-overwrite --servedir=. --serve=8000 --watch=forever",
     "build": "node build.mjs",
-    "preview": "npm run build && esbuild --servedir=dist --serve=8000 --watch=forever"
+    "preview": "npm run build && esbuild --servedir=dist --serve=8000 --watch=forever",
+    "test": "node --test \"tests/*.test.mjs\"",
+    "sim": "node tests/autopilot.sim.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
     "html-minifier-terser": "^7.2.0"
+  },
+  "dependencies": {
+    "@hangtime/grip-connect": "^0.15.1"
   }
 }

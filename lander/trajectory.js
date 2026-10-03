@@ -1,5 +1,3 @@
-import { GRAVITY } from "../helpers/constants.js";
-
 export const drawTrajectory = (
   state,
   currentPosition,
@@ -10,7 +8,7 @@ export const drawTrajectory = (
   const CTX = state.get("CTX");
   const canvasWidth = state.get("canvasWidth");
   const canvasHeight = state.get("canvasHeight");
-  const gravity = GRAVITY;
+  const { gravity } = state.get("rules")();
   const terrainLandingData = state.get("terrain").getLandingData();
   const scaleFactor = state.get("scaleFactor");
 

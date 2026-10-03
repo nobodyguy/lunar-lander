@@ -23,17 +23,14 @@ import {
   isHoverslam,
 } from "../helpers/scoring.js";
 import {
-  GRAVITY,
   LANDER_WIDTH,
   LANDER_HEIGHT,
-  CRASH_VELOCITY,
-  CRASH_ANGLE,
   INTERVAL,
   TRANSITION_TO_SPACE,
   HOVERSLAM_RELEASE_GRACE_MS,
-  FUEL_CAPACITY,
   ROTATION_FUEL_RATE,
 } from "../helpers/constants.js";
+import { DISTURBANCE, ENGINE_CUTOUT } from "../helpers/rules.js";
 import { makeLanderExplosion } from "./explosion.js";
 import { makeConfetti } from "./confetti.js";
 import { drawTrajectory } from "./trajectory.js";
@@ -50,12 +47,22 @@ export const makeLander = (state, onGameEnd) => {
   const audioManager = state.get("audioManager");
   const bonusPointsManager = state.get("bonusPointsManager");
   const settings = state.get("settings");
+  // Gravity, touchdown tolerances, fuel and the rest, as set by the controls
+  // and difficulty settings
+  const rules = state.get("rules");
 
   // Use grounded height to approximate distance from ground
   let _landingData = state.get("terrain").getLandingData();
   let _groundedHeight =
     _landingData.terrainAvgHeight - LANDER_HEIGHT + LANDER_HEIGHT / 2;
   const _thrust = 0.012;
+  // The force sensor gives a variable throttle. The keyboard and touch
+  // controls leave both of these at _thrust.
+  let _engineThrust = _thrust;
+  let _maxEngineThrust = _thrust;
+  // Set while the force sensor's autopilot is flying the steering thrusters
+  let _autopilot = null;
+  let _rotationCommand = 0;
 
   let _position;
   let _displayPosition;
@@ -66,7 +73,14 @@ export const makeLander = (state, onGameEnd) => {
   let _rotatingLeft;
   let _rotatingRight;
   let _shieldActive;
+  // The share of the tank left, 0–1, so it reads the same whatever the size
   let _fuel;
+  let _nextDisturbanceAt;
+  let _disturbanceShownUntil;
+  // A cutout leaves _engineOn alone, so it never reads as the player letting
+  // go: engine starts, hoverslams and the sound all stay the player's own
+  let _nextCutoutAt;
+  let _cutoutUntil;
 
   let _timeSinceStart;
   let gameEndData;
@@ -112,7 +126,13 @@ export const makeLander = (state, onGameEnd) => {
     _rotatingLeft = false;
     _rotatingRight = false;
     _shieldActive = false;
-    _fuel = FUEL_CAPACITY;
+    _fuel = 1;
+    _rotationCommand = 0;
+    _nextDisturbanceAt = _disturbanceInterval();
+    _disturbanceShownUntil = 0;
+    _nextCutoutAt = _cutoutInterval();
+    _cutoutUntil = 0;
+    _autopilot?.reset();
 
     _timeSinceStart = 0;
     gameEndData = false;
@@ -132,30 +152,48 @@ export const makeLander = (state, onGameEnd) => {
     _engineOffAt = null;
     _engineHeldToTouchdown = false;
   };
+  function _disturbanceInterval() {
+    return randomBetween(DISTURBANCE.minIntervalMs, DISTURBANCE.maxIntervalMs);
+  }
+  function _cutoutInterval() {
+    return randomBetween(
+      ENGINE_CUTOUT.minIntervalMs,
+      ENGINE_CUTOUT.maxIntervalMs
+    );
+  }
+
   resetProps();
+
+  const _isCutOut = () => _timeSinceStart < _cutoutUntil;
+  const _engineFiring = () => _engineOn && !_isCutOut();
 
   const _isFixedPositionInSpace = () => _position.y < 0;
 
   // Only drained while the setting is on, so switching it off and back on
   // mid-flight can't be used to refill the tank
-  const _fuelLimited = () => settings.get("fuel") === "limited";
+  const _fuelLimited = () => Number.isFinite(rules().fuelCapacity);
   const _hasFuel = () => !_fuelLimited() || _fuel > 0;
-  const _fuelPercent = () => Math.ceil((_fuel / FUEL_CAPACITY) * 100);
+  const _fuelPercent = () => Math.ceil(_fuel * 100);
 
+  // The main engine burns in proportion to its thrust, so with the force
+  // sensor a hover costs the same fuel whatever the mapping settings are
   const _burnFuel = (deltaTime) => {
     if (!_fuelLimited()) return;
 
+    const steering = _autopilot
+      ? Math.abs(_rotationCommand)
+      : (_rotatingLeft ? 1 : 0) + (_rotatingRight ? 1 : 0);
     const rate =
-      (_engineOn ? 1 : 0) +
-      (_rotatingLeft ? ROTATION_FUEL_RATE : 0) +
-      (_rotatingRight ? ROTATION_FUEL_RATE : 0);
-    _fuel = Math.max(0, _fuel - rate * deltaTime);
+      (_engineFiring() ? _engineThrust / _thrust : 0) +
+      steering * ROTATION_FUEL_RATE;
+    _fuel = Math.max(0, _fuel - (rate * deltaTime) / rules().fuelCapacity);
 
     if (_fuel === 0 && rate > 0) {
       if (_engineOn) _engineOffAt = _timeSinceStart;
       _engineOn = false;
       _rotatingLeft = false;
       _rotatingRight = false;
+      _rotationCommand = 0;
       audioManager.stopEngineSound();
       audioManager.stopBoosterSound1();
       audioManager.stopBoosterSound2();
@@ -168,16 +206,17 @@ export const makeLander = (state, onGameEnd) => {
   const _burnSlackFrames = () => {
     // Thrust points along the lander's axis, so sideways drift can't be shed on
     // the way down — it eats into the survivable touchdown speed budget
+    const { crashVelocity, gravity } = rules();
     const safeSpeed = Math.sqrt(
-      Math.max(0, Math.pow(CRASH_VELOCITY, 2) - Math.pow(_velocity.x, 2))
+      Math.max(0, Math.pow(crashVelocity, 2) - Math.pow(_velocity.x, 2))
     );
 
     return framesOfBurnSlack({
       altitude: _groundedHeight - _position.y,
       descentSpeed: _velocity.y,
       safeSpeed,
-      thrust: _thrust,
-      gravity: GRAVITY,
+      thrust: _maxEngineThrust,
+      gravity,
     });
   };
 
@@ -187,6 +226,7 @@ export const makeLander = (state, onGameEnd) => {
     // compare correctly against the slack bound in isHoverslam.
     const burnSlackMs =
       _firstBurnSlackFrames === null ? null : _firstBurnSlackFrames * INTERVAL;
+    const { crashVelocity, crashAngle } = rules();
 
     gameEndData = {
       landed,
@@ -202,12 +242,12 @@ export const makeLander = (state, onGameEnd) => {
       fuelPercent: _fuelLimited() ? _fuelPercent() : null,
       speedPercent: percentProgress(
         0,
-        CRASH_VELOCITY,
+        crashVelocity,
         getVectorVelocity(_velocity)
       ),
       anglePercent: percentProgress(
         0,
-        CRASH_ANGLE,
+        crashAngle,
         getAngleDeltaUpright(_angle)
       ),
       engineActivations: _engineActivations,
@@ -228,7 +268,8 @@ export const makeLander = (state, onGameEnd) => {
     if (landed) {
       const score = scoreLanding(
         getAngleDeltaUpright(_angle),
-        getVectorVelocity(_velocity)
+        getVectorVelocity(_velocity),
+        { crashVelocity, crashAngle }
       );
 
       gameEndData.landerScore = score;
@@ -241,7 +282,8 @@ export const makeLander = (state, onGameEnd) => {
     } else {
       const score = scoreCrash(
         getAngleDeltaUpright(_angle),
-        getVectorVelocity(_velocity)
+        getVectorVelocity(_velocity),
+        { crashVelocity, crashAngle }
       );
 
       gameEndData.landerScore = score;
@@ -271,6 +313,11 @@ export const makeLander = (state, onGameEnd) => {
         engineActivations: gameEndData.engineActivations,
         burnSlackMs: gameEndData.burnSlackMs,
         hoverslam: gameEndData.hoverslam,
+        controls: settings.get("controls"),
+        difficulty:
+          settings.get("controls") === "force"
+            ? settings.get("difficulty")
+            : null,
       });
     });
 
@@ -290,6 +337,7 @@ export const makeLander = (state, onGameEnd) => {
       audioManager.stopEngineSound();
       audioManager.stopBoosterSound1();
       audioManager.stopBoosterSound2();
+      _rotationCommand = 0;
       _setGameEndData(false, true);
     }
   };
@@ -308,19 +356,41 @@ export const makeLander = (state, onGameEnd) => {
     const landerUnderTerrain = _position.y >= canvasHeight;
 
     if (!landerInTerrain && !landerUnderTerrain) {
-      // Update ballistic properties
-      if (_rotatingRight) _rotationVelocity += deltaTimeMultiplier * 0.01;
-      if (_rotatingLeft) _rotationVelocity -= deltaTimeMultiplier * 0.01;
+      const { gravity } = rules();
+
+      // The autopilot drives the steering thrusters proportionally. Their
+      // flames only show for a firm command, so small trims don't flicker.
+      if (_autopilot && rules().autopilot && _hasFuel()) {
+        _rotationCommand = _autopilot.update(
+          {
+            position: _position,
+            velocity: _velocity,
+            angle: _angle,
+            rotationVelocity: _rotationVelocity,
+          },
+          rules().autopilot
+        );
+        _rotatingRight = _rotationCommand > 0.25;
+        _rotatingLeft = _rotationCommand < -0.25;
+        _rotationVelocity += deltaTimeMultiplier * 0.01 * _rotationCommand;
+      } else {
+        // Update ballistic properties
+        if (_rotatingRight) _rotationVelocity += deltaTimeMultiplier * 0.01;
+        if (_rotatingLeft) _rotationVelocity -= deltaTimeMultiplier * 0.01;
+      }
+
+      _applyDisturbance();
+      _applyEngineCutout();
 
       _position.x += deltaTimeMultiplier * _velocity.x;
       _position.x = ((_position.x % canvasWidth) + canvasWidth) % canvasWidth;
       _angle += deltaTimeMultiplier * ((Math.PI / 180) * _rotationVelocity);
-      _velocity.y += deltaTimeMultiplier * GRAVITY;
+      _velocity.y += deltaTimeMultiplier * gravity;
       _displayPosition.x = _position.x;
 
-      if (_engineOn) {
-        _velocity.x += deltaTimeMultiplier * (_thrust * Math.sin(_angle));
-        _velocity.y -= deltaTimeMultiplier * (_thrust * Math.cos(_angle));
+      if (_engineFiring()) {
+        _velocity.x += deltaTimeMultiplier * (_engineThrust * Math.sin(_angle));
+        _velocity.y -= deltaTimeMultiplier * (_engineThrust * Math.cos(_angle));
       }
 
       _burnFuel(deltaTime);
@@ -397,7 +467,9 @@ export const makeLander = (state, onGameEnd) => {
       audioManager.stopEngineSound();
       audioManager.stopBoosterSound1();
       audioManager.stopBoosterSound2();
+      _rotationCommand = 0;
 
+      const { crashVelocity, crashAngle } = rules();
       const landingArea = _landingData.landingSurfaces.find(
         ({ x, width }) =>
           _position.x - LANDER_WIDTH / 2 >= x &&
@@ -405,14 +477,56 @@ export const makeLander = (state, onGameEnd) => {
       );
 
       const didLand =
-        getVectorVelocity(_velocity) < CRASH_VELOCITY &&
-        getAngleDeltaUpright(_angle) < CRASH_ANGLE &&
+        getVectorVelocity(_velocity) < crashVelocity &&
+        getAngleDeltaUpright(_angle) < crashAngle &&
         landingArea;
 
       if (didLand) bonusPointsManager.addNamedPoint(landingArea.name);
 
       _setGameEndData(didLand);
     }
+  };
+
+  // A sudden push in position and rotation, on difficulties that have them.
+  // Held off near the ground, where the autopilot is levelling out for
+  // touchdown and has no tilt left to correct with.
+  const _applyDisturbance = () => {
+    if (!rules().disturbances || _timeSinceStart < _nextDisturbanceAt) return;
+
+    _nextDisturbanceAt = _timeSinceStart + _disturbanceInterval();
+    const altitude =
+      state.get("terrain").getGroundHeightAtX(_position.x) -
+      (_position.y + LANDER_HEIGHT / 2);
+    if (altitude < DISTURBANCE.minAltitude) return;
+
+    const direction = () => (randomBool() ? 1 : -1);
+    _velocity.x += direction() * randomBetween(0.5, 1) * DISTURBANCE.maxPush;
+    _rotationVelocity +=
+      direction() * randomBetween(0.5, 1) * DISTURBANCE.maxSpin;
+    _disturbanceShownUntil = _timeSinceStart + 900;
+  };
+
+  // Due cutouts wait for the engine to be on and the lander well clear of
+  // the ground, then the engine dies for a moment
+  const _applyEngineCutout = () => {
+    if (
+      !rules().engineCutouts ||
+      !_engineOn ||
+      _isCutOut() ||
+      _timeSinceStart < _nextCutoutAt
+    ) {
+      return;
+    }
+
+    const altitude =
+      state.get("terrain").getGroundHeightAtX(_position.x) -
+      (_position.y + LANDER_HEIGHT / 2);
+    if (altitude < ENGINE_CUTOUT.minAltitude) return;
+
+    _cutoutUntil =
+      _timeSinceStart +
+      randomBetween(ENGINE_CUTOUT.minDurationMs, ENGINE_CUTOUT.maxDurationMs);
+    _nextCutoutAt = _cutoutUntil + _cutoutInterval();
   };
 
   const _fuelColor = () =>
@@ -434,6 +548,13 @@ export const makeLander = (state, onGameEnd) => {
       )
     );
 
+  // Hard mode's surprises, for both HUDs, most urgent first
+  const _warnings = () =>
+    [
+      _isCutOut() && ["ENGINE FAIL", "rgb(255, 60, 60)"],
+      _timeSinceStart < _disturbanceShownUntil && ["GUST", "rgb(255, 170, 0)"],
+    ].filter(Boolean);
+
   const _drawHUD = () => {
     const units = settings.get("units");
     const { speedLabel, heightLabel } = UNIT_SYSTEMS[units];
@@ -448,12 +569,13 @@ export const makeLander = (state, onGameEnd) => {
     const yPosBasis = Math.max(_position.y, TRANSITION_TO_SPACE);
     const lineHeight = 14;
     const rotatingLeft = _rotationVelocity < 0;
+    const { crashVelocity, crashAngle } = rules();
     const speedColor =
-      getVectorVelocity(_velocity) > CRASH_VELOCITY
+      getVectorVelocity(_velocity) > crashVelocity
         ? "rgb(255, 0, 0)"
         : "rgb(0, 255, 0)";
     const angleColor =
-      getAngleDeltaUpright(_angle) > CRASH_ANGLE
+      getAngleDeltaUpright(_angle) > crashAngle
         ? "rgb(255, 0, 0)"
         : "rgb(0, 255, 0)";
 
@@ -480,6 +602,14 @@ export const makeLander = (state, onGameEnd) => {
       CTX.fillStyle = _fuelColor();
       CTX.fillText(_fuelText(), xPosBasis, yPosBasis + lineHeight * 2);
     }
+    _warnings().forEach(([text, color], index) => {
+      CTX.fillStyle = color;
+      CTX.fillText(
+        text,
+        xPosBasis,
+        yPosBasis + lineHeight * ((_fuelLimited() ? 3 : 2) + index)
+      );
+    });
 
     // Draw hud rotation direction arrow
     const arrowHeight = 7;
@@ -531,7 +661,7 @@ export const makeLander = (state, onGameEnd) => {
     const { speedLabel, heightLabel } = UNIT_SYSTEMS[units];
     const yPadding = LANDER_HEIGHT;
     const xPadding = LANDER_HEIGHT;
-    const gravity = GRAVITY;
+    const { gravity } = rules();
 
     const fallDistance = _landingData.terrainAvgHeight - _position.y;
     const discriminant = _velocity.y ** 2 + 2 * gravity * fallDistance;
@@ -581,6 +711,20 @@ export const makeLander = (state, onGameEnd) => {
       CTX.fillText(_fuelText(), canvasWidth / 2, canvasHeight - yPadding - 56);
       CTX.restore();
     }
+
+    // Stacked above the fuel readout, or where it would be
+    _warnings().forEach(([text, color], index) => {
+      CTX.save();
+      CTX.fillStyle = color;
+      CTX.letterSpacing = "1px";
+      CTX.font = "600 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif";
+      CTX.fillText(
+        text,
+        canvasWidth / 2,
+        canvasHeight - yPadding - (_fuelLimited() ? 80 : 56) - index * 24
+      );
+      CTX.restore();
+    });
 
     if (secondsUntilTerrain < 20) {
       CTX.fillStyle = "rgb(255, 0, 0)";
@@ -667,9 +811,15 @@ export const makeLander = (state, onGameEnd) => {
       CTX.fillStyle = randomBool() ? "#415B8C" : "#F3AFA3";
     }
 
-    // Main engine flame
-    if (_engineOn) {
-      const _flameHeight = randomBetween(10, 50);
+    // Main engine flame. During a cutout it only sputters: a stub of flame
+    // on the odd frame, so it reads as a failing engine, not a released one.
+    const sputtering = _isCutOut();
+    if (_engineOn && (!sputtering || randomBool(0.85))) {
+      // Scaled by the throttle, which is always full without the force sensor
+      const _flameHeight = sputtering
+        ? randomBetween(3, 10)
+        : randomBetween(10, 50) *
+          (0.25 + 0.75 * Math.min(1, _engineThrust / _maxEngineThrust));
       const _flameMargin = 3;
       CTX.beginPath();
       CTX.moveTo(_flameMargin, LANDER_HEIGHT);
@@ -782,6 +932,25 @@ export const makeLander = (state, onGameEnd) => {
       _engineOn = false;
       _engineOffAt = _timeSinceStart;
     },
+    // The engine's thrust while on, and the most it can give, as accelerations
+    // in pixels per frame². Only the force sensor changes these.
+    setEngineThrust: (thrust, maxThrust) => {
+      _engineThrust = thrust;
+      _maxEngineThrust = maxThrust;
+    },
+    resetEngineThrust: () => {
+      _engineThrust = _thrust;
+      _maxEngineThrust = _thrust;
+    },
+    setAutopilot: (autopilot) => {
+      _autopilot = autopilot;
+      _rotationCommand = 0;
+      _rotatingLeft = false;
+      _rotatingRight = false;
+      autopilot?.reset();
+    },
+    getAutopilotTarget: () => (_autopilot ? _autopilot.getTarget() : null),
+    isEngineCutOut: () => _isCutOut() && !gameEndData,
     rotateLeft: () => _hasFuel() && (_rotatingLeft = true),
     rotateRight: () => _hasFuel() && (_rotatingRight = true),
     stopLeftRotation: () => (_rotatingLeft = false),

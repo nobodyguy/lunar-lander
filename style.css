@@ -316,8 +316,9 @@ li.strikethrough {
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
-  top: 2px;
-  left: 6px;
+  top: 0;
+  left: 16px;
+  line-height: 40px;
   font-size: var(--stats-font-size);
   text-transform: uppercase;
 }
@@ -331,8 +332,10 @@ li.strikethrough {
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
-  top: 2px;
-  right: 40px;
+  top: 0;
+  /* 7px button offset + 40px button, less its icon's 9px inset, plus a gap */
+  right: 48px;
+  line-height: 40px;
   font-size: var(--stats-font-size);
   text-transform: uppercase;
 }
@@ -359,7 +362,8 @@ li.strikethrough {
 .settingsButton {
   position: absolute;
   top: 0;
-  right: 0;
+  /* The icon is inset 9px, so this puts its edge on the 16px gutter */
+  right: 7px;
   z-index: 2;
   width: 40px;
   height: 40px;
@@ -578,4 +582,340 @@ li.strikethrough {
   border: 0;
   font: inherit;
   font-weight: 500;
+}
+
+/* Force sensor */
+
+.forceSettings {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.forceSettings[hidden],
+.sensorPill[hidden],
+.settingsGroup[hidden] {
+  display: none;
+}
+
+.sensorCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sensorCard .settingsHint {
+  margin: 0;
+}
+
+.sensorSelect,
+.numberInput input {
+  font: inherit;
+  color: var(--headline-font-color);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 7px;
+  color-scheme: dark;
+}
+
+/* The popup list is drawn by the browser on its own surface, so it needs a
+   solid colour of its own; the translucent fill above doesn't carry over */
+.sensorSelect option {
+  background: #0b1030;
+  color: #fff;
+}
+
+.sensorSelect {
+  width: 100%;
+  padding: 8px 10px;
+}
+
+.sensorSelect:disabled {
+  opacity: 0.6;
+}
+
+.sensorStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.sensorBattery {
+  margin-left: auto;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sensorBattery.low {
+  color: rgb(255, 80, 80);
+}
+
+/* Grey until connected, green when data is flowing, amber while working on
+   it or stalled, red when something went wrong */
+.statusDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+[data-status="connected"] .statusDot {
+  background: rgb(0, 220, 90);
+  box-shadow: 0 0 6px rgb(0, 220, 90);
+}
+
+[data-status="connecting"] .statusDot,
+[data-status="stalled"] .statusDot {
+  background: rgb(255, 170, 0);
+  animation: statusPulse 1s ease-in-out infinite alternate;
+}
+
+[data-status="lost"] .statusDot,
+[data-status="error"] .statusDot {
+  background: rgb(255, 60, 60);
+}
+
+@keyframes statusPulse {
+  to {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-status] .statusDot {
+    animation: none;
+  }
+}
+
+/* Live force against Fmax, with ticks at the lower threshold and the hover
+   point, so the player can feel where those sit before flying */
+.forceMeter {
+  --force: 0%;
+  --threshold: 5%;
+  --hover: 30%;
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.forceMeterFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--force);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.forceMeter.active .forceMeterFill {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.forceMeterTick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.forceMeterTick--threshold {
+  left: var(--threshold);
+}
+
+.forceMeterTick--hover {
+  left: var(--hover);
+  background: rgb(0, 255, 0);
+}
+
+.forceReadout {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sensorActions {
+  display: flex;
+  gap: 8px;
+}
+
+.smallButton {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 7px;
+  background: none;
+  color: var(--headline-font-color);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.smallButton--primary {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.9);
+  color: #02071e;
+}
+
+.smallButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.smallButton:focus-visible,
+.sensorSelect:focus-visible,
+.numberInput input:focus-visible,
+.field input[type="range"]:focus-visible {
+  outline: 2px solid var(--headline-font-color);
+  outline-offset: 2px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.field > label,
+.fieldLabel {
+  flex: 1;
+  color: var(--headline-font-color);
+}
+
+.field .smallButton {
+  flex: none;
+}
+
+.field--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.field--stacked > label {
+  display: flex;
+  justify-content: space-between;
+}
+
+.field--stacked output {
+  font-variant-numeric: tabular-nums;
+  color: var(--body-font-color);
+}
+
+.field input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: #fff;
+}
+
+.numberInput {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.numberInput input {
+  width: 4.5em;
+  padding: 6px 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.settingsGroup .field:not(:first-of-type):not(.field--stacked) {
+  margin-top: 18px;
+}
+
+.settingsWarning {
+  color: rgb(255, 170, 0);
+}
+
+/* Over the game, beside the tally. Tapping it opens the settings, where the
+   sensor is managed. */
+.sensorPill {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 200px);
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(2, 7, 30, 0.6);
+  color: var(--body-font-color);
+  font: inherit;
+  font-size: var(--stats-font-size);
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.sensorPill span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sensorPill:not([data-status="connected"]) {
+  color: var(--headline-font-color);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.sensorPill:focus-visible {
+  outline: 2px solid var(--headline-font-color);
+  outline-offset: 2px;
+}
+
+/* On narrow screens the corners take the whole top row */
+@media screen and (max-width: 640px) {
+  .sensorPill {
+    top: 56px;
+    max-width: calc(100vw - 32px);
+  }
+}
+
+.sensorWait {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(320px, calc(100vw - 48px));
+  padding: 20px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: rgba(2, 7, 30, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--headline-font-color);
+  text-align: center;
+  font-size: 16px;
+  transform: translate(-50%, -50%);
+}
+
+.sensorWait[hidden] {
+  display: none;
+}
+
+.sensorWait p {
+  margin: 0;
+}
+
+.sensorWait .smallButton {
+  flex: none;
 }

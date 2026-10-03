@@ -163,6 +163,14 @@
     <div id="tally" class="topRightCorner">
       L<span id="landingTotal"></span> C<span id="crashTotal"></span>
     </div>
+    <div id="sensorWait" class="sensorWait" hidden>
+      <p id="sensorWaitText">Connect your force sensor to fly</p>
+      <button id="sensorWaitButton" class="smallButton smallButton--primary" type="button">Open sensor settings</button>
+    </div>
+    <button id="sensorPill" class="sensorPill" type="button" hidden>
+      <span class="statusDot" aria-hidden="true"></span>
+      <span id="sensorPillText"></span>
+    </button>
     <button id="openSettings" class="settingsButton" type="button" aria-label="Settings" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4z"/>
@@ -176,6 +184,80 @@
           <span class="settingsPaused">Paused</span>
         </div>
         <fieldset class="settingsGroup">
+          <legend>Controls</legend>
+          <div class="segmented">
+            <label><input type="radio" name="controls" value="standard" /><span>Keys &amp; touch</span></label>
+            <label><input type="radio" name="controls" value="force" /><span>Force sensor</span></label>
+          </div>
+          <p class="settingsHint" data-for-controls="standard">Arrow keys or taps fire the main engine and the steering thrusters.</p>
+          <p class="settingsHint" data-for-controls="force" hidden>Pull on a Bluetooth force sensor to fire the main engine. An autopilot steers to the nearest pad and levels out for touchdown. Pull to play again.</p>
+        </fieldset>
+        <div id="forceSettings" class="forceSettings" hidden>
+          <fieldset class="settingsGroup">
+            <legend>Sensor</legend>
+            <div class="sensorCard">
+              <select id="sensorDevice" name="device" class="sensorSelect" aria-label="Sensor model"></select>
+              <div id="sensorStatus" class="sensorStatus" role="status" aria-live="polite">
+                <span class="statusDot" aria-hidden="true"></span>
+                <span id="sensorStatusText">Not connected</span>
+                <span id="sensorBattery" class="sensorBattery" hidden></span>
+              </div>
+              <div id="forceMeter" class="forceMeter" aria-hidden="true">
+                <div class="forceMeterFill"></div>
+                <div class="forceMeterTick forceMeterTick--threshold"></div>
+                <div class="forceMeterTick forceMeterTick--hover"></div>
+              </div>
+              <div class="forceReadout">
+                <span><span id="forceValue">0.0</span> kg</span>
+                <span id="throttleValue">engine off</span>
+              </div>
+              <div class="sensorActions">
+                <button type="button" id="sensorConnect" class="smallButton smallButton--primary">Connect</button>
+                <button type="button" id="sensorTare" class="smallButton" disabled>Tare</button>
+              </div>
+              <p id="sensorHint" class="settingsHint"></p>
+            </div>
+          </fieldset>
+          <fieldset class="settingsGroup">
+            <legend>Input mapping</legend>
+            <div class="field">
+              <label for="fmax">Max force</label>
+              <span class="numberInput"><input type="number" id="fmax" name="fmax" inputmode="decimal" min="2" max="200" step="0.5" /><span>kg</span></span>
+              <button type="button" id="measureFmax" class="smallButton" disabled>Measure</button>
+            </div>
+            <p class="settingsHint">Full thrust at this pull. Measure sets it from your hardest pull over three seconds.</p>
+            <div class="field field--stacked">
+              <label for="hover">Hover point <output id="hoverOutput" for="hover"></output></label>
+              <input type="range" id="hover" name="hover" min="5" max="90" step="1" />
+            </div>
+            <p class="settingsHint">The share of max force that holds the lander still in the air.</p>
+            <p id="hoverWarning" class="settingsHint settingsWarning" hidden>The hover point is under the lower threshold. Raise it, or lower the threshold.</p>
+            <div class="field field--stacked">
+              <span class="fieldLabel">Curve</span>
+              <div class="segmented">
+                <label><input type="radio" name="curve" value="linear" /><span>Linear</span></label>
+                <label><input type="radio" name="curve" value="exponential" /><span>Exponential</span></label>
+              </div>
+            </div>
+            <p class="settingsHint">Exponential gives finer control over light pulls.</p>
+            <div class="field">
+              <label for="threshold">Lower threshold</label>
+              <span class="numberInput"><input type="number" id="threshold" name="threshold" inputmode="decimal" min="0.2" max="20" step="0.1" /><span>kg</span></span>
+            </div>
+            <p id="thresholdHint" class="settingsHint"></p>
+          </fieldset>
+          <fieldset class="settingsGroup">
+            <legend>Difficulty</legend>
+            <div class="segmented">
+              <label><input type="radio" name="difficulty" value="easy" /><span>Easy</span></label>
+              <label><input type="radio" name="difficulty" value="medium" /><span>Medium</span></label>
+              <label><input type="radio" name="difficulty" value="hard" /><span>Hard</span></label>
+            </div>
+            <p id="difficultyHint" class="settingsHint"></p>
+            <p class="settingsHint">Changing difficulty or controls mid-flight starts a new round.</p>
+          </fieldset>
+        </div>
+        <fieldset class="settingsGroup">
           <legend>Units</legend>
           <div class="segmented">
             <label><input type="radio" name="units" value="metric" /><span>Metric</span></label>
@@ -183,7 +265,7 @@
           </div>
           <p class="settingsHint">Metric shows km/h and meters. Imperial shows mph and feet.</p>
         </fieldset>
-        <fieldset class="settingsGroup">
+        <fieldset class="settingsGroup" id="fuelGroup">
           <legend>Fuel</legend>
           <div class="segmented">
             <label><input type="radio" name="fuel" value="unlimited" /><span>Unlimited</span></label>

@@ -30,7 +30,7 @@ export const landingScoreDescription = (score) =>
     : score >= 55
     ? "Pretty bad landing, but it could be worse"
     : score >= 45
-    ? "Not great"
+    ? "Not great, not terrible"
     : score >= 40
     ? "Basically a fender bender, but you landed"
     : score >= 30
@@ -125,9 +125,18 @@ export const destroyedDescription = () => {
 // Worst possible landing:
 // angle: 11
 // speed: 12
-export const scoreLanding = (angle, speed) => {
+//
+// The limits are looser on the force sensor's easier difficulties, and the
+// scale stretches with them so a landing there still scores 0–100.
+const STANDARD_LIMITS = { crashVelocity: CRASH_VELOCITY, crashAngle: CRASH_ANGLE };
+
+export const scoreLanding = (
+  angle,
+  speed,
+  { crashVelocity, crashAngle } = STANDARD_LIMITS
+) => {
   const bestPossibleCombo = 1;
-  const worstPossibleCombo = CRASH_ANGLE + CRASH_VELOCITY * VELOCITY_MULTIPLIER;
+  const worstPossibleCombo = crashAngle + crashVelocity * VELOCITY_MULTIPLIER;
   return (
     progress(
       worstPossibleCombo,
@@ -137,11 +146,15 @@ export const scoreLanding = (angle, speed) => {
   );
 };
 
-export const scoreCrash = (angle, speed) => {
+export const scoreCrash = (
+  angle,
+  speed,
+  { crashVelocity, crashAngle } = STANDARD_LIMITS
+) => {
   const bestPossibleCombo = 900;
   const worstPossibleCombo = Math.min(
-    CRASH_VELOCITY * VELOCITY_MULTIPLIER,
-    CRASH_ANGLE
+    crashVelocity * VELOCITY_MULTIPLIER,
+    crashAngle
   );
   return (
     progress(

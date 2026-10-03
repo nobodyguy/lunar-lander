@@ -87,9 +87,14 @@ ${formatSpeed(data.speedMph, units)}${speedLabel} | ${data.angle}° | ${
     fuelRow.hidden = data.fuelPercent === null;
     document.querySelector("#fuelLeft").textContent = `${data.fuelPercent}%`;
 
-    if (hasKeyboard) {
+    if (settings.get("controls") === "force") {
+      document.querySelector("#tryAgainText").textContent =
+        "Play Again (Pull)";
+    } else if (hasKeyboard) {
       document.querySelector("#tryAgainText").textContent =
         "Play Again (Space)";
+    } else {
+      document.querySelector("#tryAgainText").textContent = "Play Again";
     }
 
     if (canShowShareSheet) {
@@ -164,6 +169,15 @@ ${formatSpeed(data.speedMph, units)}${speedLabel} | ${data.angle}° | ${
       document.querySelector("#tryAgain").classList.remove("loading");
       detachers.push(
         onActivate(document.querySelector("#tryAgain"), tryAgain)
+      );
+      // A fresh pull past the lower threshold on the force sensor. Only a
+      // new pull counts, so a player still pulling as the round ended has to
+      // let go first. Ignored while the settings sheet is open, where pulls
+      // are for trying out the mapping.
+      detachers.push(
+        state.get("forceInput").onPress(() => {
+          if (!document.querySelector("#settings").open) tryAgain();
+        })
       );
     }, buttonDelayTime);
 

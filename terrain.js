@@ -57,11 +57,16 @@ export const makeTerrain = (state) => {
     const landingZone = landingZoneSpans.pop();
     const landingZoneWidth = landingZone.maxPoint - landingZone.minPoint;
 
-    // Ensure the surface is no wider than the zone
-    const widthInPoints = Math.min(
-      minWidthInPoints * widthUnit,
-      landingZoneWidth
+    // The force sensor's easier difficulties widen the pads. Scaled after
+    // rounding to whole points, since on a wide screen one point is already
+    // wider than 1.5 landers and scaling before would change nothing.
+    const scaledWidthInPoints = Math.max(
+      1,
+      Math.round(minWidthInPoints * widthUnit * state.get("rules")().padScale)
     );
+
+    // Ensure the surface is no wider than the zone
+    const widthInPoints = Math.min(scaledWidthInPoints, landingZoneWidth);
 
     // Only create an offset startPoint if there's enough width to render
     // the widthInPoints
@@ -170,10 +175,11 @@ export const makeTerrain = (state) => {
   const getLandingData = () => {
     let landingSurfacesInPixels = [];
 
-    landingSurfaces.forEach(({ startPoint, widthInPoints, name }) => {
+    landingSurfaces.forEach(({ startPoint, widthInPoints, height, name }) => {
       landingSurfacesInPixels.push({
         x: startPoint * (canvasWidth / numPoints),
         width: widthInPoints * (canvasWidth / numPoints),
+        y: height,
         name,
       });
     });

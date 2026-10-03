@@ -4,14 +4,14 @@
     {
       "name": "Server",
       "request": "launch",
-      "command": "npx http-server",
+      "command": "npm start",
       "type": "node-terminal"
     },
     {
       "name": "Launch",
       "request": "launch",
       "type": "chrome",
-      "url": "http://localhost:8080",
+      "url": "http://localhost:8000",
       "webRoot": "${workspaceFolder}"
     }
   ],

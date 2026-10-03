@@ -28,6 +28,11 @@ import { makeBonusPointsManager } from "./bonuspoints.js";
 import { makeTheme } from "./theme.js";
 import { makeSettingsManager, manageSettingsDialog } from "./settings.js";
 import { TRANSITION_TO_SPACE } from "./helpers/constants.js";
+import { makeRules } from "./helpers/rules.js";
+import { makeForceSensor } from "./forcesensor/device.js";
+import { makeForceInput } from "./forcesensor/input.js";
+import { manageForceSettings } from "./forcesensor/panel.js";
+import { makeForceControls } from "./lander/forcecontrols.js";
 import {
   landingScoreDescription,
   crashScoreDescription,
@@ -47,6 +52,8 @@ const [CTX, canvasWidth, canvasHeight, canvasElement, scaleFactor] =
 const challengeManager = makeChallengeManager();
 const seededRandom = makeSeededRandom();
 const settings = makeSettingsManager();
+const forceSensor = makeForceSensor();
+const forceInput = makeForceInput(forceSensor, settings);
 
 const appState = makeStateManager()
   .set("CTX", CTX)
@@ -57,7 +64,9 @@ const appState = makeStateManager()
   .set("audioManager", audioManager)
   .set("challengeManager", challengeManager)
   .set("seededRandom", seededRandom)
-  .set("settings", settings);
+  .set("settings", settings)
+  .set("rules", makeRules(settings))
+  .set("forceInput", forceInput);
 
 appState.set("theme", makeTheme(appState));
 
@@ -79,6 +88,16 @@ const toyLander = makeToyLander(
 const toyLanderControls = makeControls(appState, toyLander, audioManager);
 const lander = makeLander(appState, onGameEnd);
 const landerControls = makeControls(appState, lander, audioManager);
+const forceControls = makeForceControls(
+  appState,
+  lander,
+  audioManager,
+  forceInput
+);
+// The tutorial always uses the keys and touch; the real game uses whichever
+// the settings pick
+const gameControls = () =>
+  settings.get("controls") === "force" ? forceControls : landerControls;
 const tally = makeTallyManger();
 
 const asteroidRandom = seededRandom.getStream("asteroids");
@@ -98,7 +117,7 @@ if (!instructions.hasClosedInstructions()) {
   instructions.show();
   toyLanderControls.attachEventListeners();
 } else {
-  landerControls.attachEventListeners();
+  gameControls().attachEventListeners();
   challengeManager.populateCornerInfo();
   terrain.setShowLandingSurfaces();
 }
@@ -124,21 +143,81 @@ settings.subscribe((key) => {
 // game is paused rather than left to fall into the terrain behind the dialog.
 // The tutorial can finish while the dialog is open, so the controls to restore
 // are looked up again on close rather than remembered from open.
+// The controls setting can also change while it's open, which is why the
+// lookup happens again on close.
 const activeControls = () =>
-  instructions.hasClosedInstructions() ? landerControls : toyLanderControls;
+  instructions.hasClosedInstructions() ? gameControls() : toyLanderControls;
 let detachedForSettings = false;
 
-manageSettingsDialog(settings, {
+// Gravity, pad size and the rest can't sensibly change mid-flight, so a
+// round in progress starts over when the sheet closes after such a change
+let rulesChangedInSettings = false;
+settings.subscribe((key) => {
+  if (key === "controls" || key === "difficulty") rulesChangedInSettings = true;
+});
+
+// Force controls can't fly without a live sensor, so a round holds still,
+// clock included, until one is streaming. That covers starting up as well
+// as a sensor that drops out mid-flight, which resumes where it left off.
+let settingsOpen = false;
+const sensorWait = document.querySelector("#sensorWait");
+const SENSOR_WAIT_TEXT = {
+  connecting: "Connecting to your force sensor…",
+  lost: "The force sensor disconnected. Reconnect to carry on.",
+  connected: "Waiting for data from the force sensor…",
+};
+
+const updatePause = () => {
+  const waiting =
+    settings.get("controls") === "force" &&
+    instructions.hasClosedInstructions() &&
+    !gameEnded &&
+    !forceSensor.isStreaming();
+
+  sensorWait.hidden = !waiting || settingsOpen;
+  document.querySelector("#sensorWaitText").textContent =
+    SENSOR_WAIT_TEXT[forceSensor.getStatus()] ??
+    "Connect your force sensor to fly";
+  animationObject.setPaused(settingsOpen || waiting);
+};
+// Polled as well, since a stalled stream doesn't announce itself. The first
+// check runs after the first frame has been drawn, so a paused start still
+// shows the scene.
+setInterval(updatePause, 250);
+forceSensor.subscribe(updatePause);
+document
+  .querySelector("#sensorWaitButton")
+  .addEventListener("click", () => settingsDialog.open());
+
+const settingsDialog = manageSettingsDialog(settings, {
   onOpen: () => {
+    settingsOpen = true;
     animationObject.setPaused(true);
+    rulesChangedInSettings = false;
     detachedForSettings = !gameEnded;
     if (detachedForSettings) activeControls().detachEventListeners();
+    forceSettings.onOpen();
   },
   onClose: () => {
-    animationObject.setPaused(false);
-    if (detachedForSettings) activeControls().attachEventListeners();
+    settingsOpen = false;
+    if (
+      rulesChangedInSettings &&
+      detachedForSettings &&
+      instructions.hasClosedInstructions()
+    ) {
+      animationObject.resetStartTime();
+      resetRoundState();
+    } else if (detachedForSettings) {
+      activeControls().attachEventListeners();
+    }
     detachedForSettings = false;
+    rulesChangedInSettings = false;
+    updatePause();
   },
+});
+
+const forceSettings = manageForceSettings(settings, forceSensor, forceInput, {
+  openSettings: settingsDialog.open,
 });
 
 // MAIN ANIMATION LOOP
@@ -163,10 +242,14 @@ const animationObject = animate((timeSinceStart, deltaTime) => {
   CTX.save();
   CTX.translate(0, terrainOffset);
   terrain.draw();
+  if (instructions.hasClosedInstructions() && !gameEnded) {
+    forceControls.drawTargetMarker(timeSinceStart);
+  }
   CTX.restore();
 
   if (instructions.hasClosedInstructions()) {
     landerControls.drawTouchOverlay();
+    forceControls.drawThrottleGauge();
 
     bonusPointsManager.draw(lander.getPosition().y < TRANSITION_TO_SPACE);
 
@@ -211,6 +294,7 @@ const animationObject = animate((timeSinceStart, deltaTime) => {
       randomConfetti.forEach((c) => c.draw(deltaTime));
     }
 
+    forceControls.update();
     lander.draw(timeSinceStart, deltaTime);
   } else {
     toyLander.draw(deltaTime);
@@ -223,7 +307,7 @@ const animationObject = animate((timeSinceStart, deltaTime) => {
 
 function onCloseInstructions() {
   toyLanderControls.detachEventListeners();
-  landerControls.attachEventListeners();
+  gameControls().attachEventListeners();
   // The clock starts when the page loads, so without this a first-time
   // player's duration includes all the time they spent in the tutorial.
   animationObject.resetStartTime();
@@ -233,7 +317,7 @@ function onCloseInstructions() {
 
 function onGameEnd(data) {
   gameEnded = true;
-  landerControls.detachEventListeners();
+  gameControls().detachEventListeners();
   bonusPointsManager.hide();
 
   const finalScore = data.landerScore + bonusPointsManager.getTotalPoints();
@@ -272,9 +356,12 @@ function onResetGame() {
 function resetRoundState() {
   gameEnded = false;
 
+  // Both are detached in case the controls setting changed since they were
+  // attached
   if (instructions.hasClosedInstructions()) {
     landerControls.detachEventListeners();
-    landerControls.attachEventListeners();
+    forceControls.detachEventListeners();
+    gameControls().attachEventListeners();
   }
 
   seededRandom.setDailyChallengeSeed();
