@@ -18,7 +18,6 @@ export const showStatsAndResetControl = (
     document.querySelector("#endGameStats").classList.add("show");
     document.querySelector("#tryAgain").classList.add("loading");
   };
-  const canCopyText = navigator && navigator.clipboard;
   const settings = state.get("settings");
   let hasReset = false;
 
@@ -97,16 +96,8 @@ ${formatSpeed(data.speedMph, units)}${speedLabel} | ${data.angle}° | ${
       document.querySelector("#tryAgainText").textContent = "Play Again";
     }
 
-    if (canShowShareSheet) {
-      if (document.querySelector("#copyText")) {
-        document.querySelector("#copyText").remove();
-      }
-    } else if (document.querySelector("#share")) {
+    if (!canShowShareSheet && document.querySelector("#share")) {
       document.querySelector("#share").remove();
-    }
-
-    if (!canCopyText && document.querySelector("#copyText")) {
-      document.querySelector("#copyText").remove();
     }
   };
 
@@ -132,26 +123,13 @@ ${formatSpeed(data.speedMph, units)}${speedLabel} | ${data.angle}° | ${
       .catch(() => {});
   }
 
-  function copyShareStats() {
-    Promise.resolve()
-      .then(() => navigator.clipboard.writeText(getShareText()))
-      .then(() => {
-        const button = document.querySelector("#copyText span");
-        if (button) {
-          button.textContent = "Copied";
-          setTimeout(() => (button.textContent = "Copy Stats"), 2000);
-        }
-      })
-      .catch(() => {});
-  }
-
   // Space inside the settings dialog belongs to its controls
   function tryAgainOnSpace({ code, target }) {
     if (code === "Space" && !target.closest("dialog")) tryAgain();
   }
 
   // Collected so that every listener attached for this game-over screen is
-  // guaranteed to come back off again, including the share/copy pair that
+  // guaranteed to come back off again, including the share button's, which
   // used to be left behind and stack up a duplicate every round.
   let detachers = [];
 
@@ -184,10 +162,6 @@ ${formatSpeed(data.speedMph, units)}${speedLabel} | ${data.angle}° | ${
     if (canShowShareSheet) {
       detachers.push(
         onActivate(document.querySelector("#share"), showShareSheet)
-      );
-    } else if (canCopyText) {
-      detachers.push(
-        onActivate(document.querySelector("#copyText"), copyShareStats)
       );
     }
 

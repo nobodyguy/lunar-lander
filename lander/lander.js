@@ -299,28 +299,6 @@ export const makeLander = (state, onGameEnd) => {
       _velocity = { x: 0, y: 0 };
     }
 
-    DD_RUM.onReady(() => {
-      DD_RUM.addAction("score", {
-        score: gameEndData.landerScore,
-        landed: !!landed,
-        speed: formatSpeed(gameEndData.speedMph, "imperial"),
-        angle: gameEndData.angle,
-        duration: gameEndData.durationMs,
-        flips: gameEndData.rotationsInt,
-        maxSpeed: formatSpeed(gameEndData.maxSpeedMph, "imperial"),
-        maxHeight: formatHeight(gameEndData.maxHeightFt, "imperial"),
-        fuelPercent: gameEndData.fuelPercent,
-        engineActivations: gameEndData.engineActivations,
-        burnSlackMs: gameEndData.burnSlackMs,
-        hoverslam: gameEndData.hoverslam,
-        controls: settings.get("controls"),
-        difficulty:
-          settings.get("controls") === "force"
-            ? settings.get("difficulty")
-            : null,
-      });
-    });
-
     onGameEnd(gameEndData);
   };
 
