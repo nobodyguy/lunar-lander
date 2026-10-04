@@ -23,6 +23,8 @@ And thanks to [this guide](http://students.cs.ucl.ac.uk/schoolslab/projects/HT5/
 
 `npm start` serves the game at http://localhost:8000, bundling on each request. See `launch.json` to run it from VS Code.
 
+The built game is an installable PWA: use the browser's Install (or Add to Home Screen) option to run it fullscreen and offline, with the screen kept on. The service worker (`sw.js`) is only registered by `npm run build`, so `npm start` never serves cached files; try it with `npm run preview`. A new release is downloaded in the background and takes over on the next launch.
+
 `npm test` runs the unit tests, and `npm run sim` prints how the force sensor autopilot fares on each difficulty in a headless simulation (`npm run sim -- 200` for more runs).
 
 ## Force sensor controls

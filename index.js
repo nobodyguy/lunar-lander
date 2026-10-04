@@ -33,6 +33,7 @@ import { makeForceSensor } from "./forcesensor/device.js";
 import { makeForceInput } from "./forcesensor/input.js";
 import { manageForceSettings } from "./forcesensor/panel.js";
 import { makeForceControls } from "./lander/forcecontrols.js";
+import { keepScreenOn } from "./helpers/wakelock.js";
 import {
   landingScoreDescription,
   crashScoreDescription,
@@ -42,6 +43,7 @@ import {
 
 // SETUP
 
+keepScreenOn();
 const audioManager = makeAudioManager();
 const [CTX, canvasWidth, canvasHeight, canvasElement, scaleFactor] =
   generateCanvas({
