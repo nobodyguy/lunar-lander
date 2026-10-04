@@ -124,7 +124,7 @@ export const makeLanderExplosion = (
     position,
     velocity,
     gradient,
-    randomBetween(2, 20),
+    randomBetween(2, 8),
     32,
     useTerrain
   );
