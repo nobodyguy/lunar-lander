@@ -1,6 +1,5 @@
 {
   "name": "Lunar Lander",
-  "short_name": "Lander",
   "description": "Can you successfully pilot the lander to the surface?",
   "id": "./",
   "start_url": "./",
