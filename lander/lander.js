@@ -505,6 +505,7 @@ export const makeLander = (state, onGameEnd) => {
       _timeSinceStart +
       randomBetween(ENGINE_CUTOUT.minDurationMs, ENGINE_CUTOUT.maxDurationMs);
     _nextCutoutAt = _cutoutUntil + _cutoutInterval();
+    audioManager.playEngineFailure();
   };
 
   const _fuelColor = () =>

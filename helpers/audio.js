@@ -12,6 +12,8 @@ export const makeAudioManager = () => {
   let confetti1FileBuffer;
   let confetti2FileBuffer;
   let babyFileBuffer;
+  let engineFail1FileBuffer;
+  let engineFail2FileBuffer;
   let themeAudio;
 
   let engineFileBufferSource = false;
@@ -38,6 +40,8 @@ export const makeAudioManager = () => {
       confetti1FileBuffer = _loadFile(audioCTX, "./audio/confetti1.mp3");
       confetti2FileBuffer = _loadFile(audioCTX, "./audio/confetti2.mp3");
       babyFileBuffer = _loadFile(audioCTX, "./audio/baby.mp3");
+      engineFail1FileBuffer = _loadFile(audioCTX, "./audio/enginefail1.mp3");
+      engineFail2FileBuffer = _loadFile(audioCTX, "./audio/enginefail2.mp3");
 
       // Play theme in a loop in the background on instantiation. Playing some
       // audio continuously with the HTML audio API will allow audio via the Web
@@ -172,6 +176,13 @@ export const makeAudioManager = () => {
     _playTrack(() => babyFileBuffer, false);
   };
 
+  const playEngineFailure = () => {
+    _playTrack(
+      () => (randomBool() ? engineFail1FileBuffer : engineFail2FileBuffer),
+      false
+    );
+  };
+
   return {
     playEngineSound,
     playBoosterSound1,
@@ -183,5 +194,6 @@ export const makeAudioManager = () => {
     playLanding,
     playConfetti,
     playBaby,
+    playEngineFailure,
   };
 };
