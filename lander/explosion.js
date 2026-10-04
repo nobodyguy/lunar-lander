@@ -11,6 +11,11 @@ export const makeExplosion = (
   amount,
   useTerrain = true
 ) => {
+  // `size` is either the largest piece size or a function returning one
+  // piece dimension, called separately for each piece's width and height
+  const pieceSize =
+    typeof size === "function" ? size : () => randomBetween(size / 4, size);
+
   const smallExplosionChunks = new Array(amount)
     .fill()
     .map(() =>
@@ -18,8 +23,8 @@ export const makeExplosion = (
         state,
         jitterCoordinate(position),
         jitterCoordinate(velocity),
-        randomBetween(size / 4, size),
-        randomBetween(size / 4, size),
+        pieceSize(),
+        pieceSize(),
         fill,
         false,
         useTerrain
@@ -124,7 +129,10 @@ export const makeLanderExplosion = (
     position,
     velocity,
     gradient,
-    randomBetween(2, 8),
+    // Mostly tiny specks with only a few larger fragments. Evenly spread
+    // sizes gave a cloud of same-sized medium pieces far bigger than the
+    // lander they came from.
+    () => 1.5 + 6 * Math.random() ** 3,
     32,
     useTerrain
   );
