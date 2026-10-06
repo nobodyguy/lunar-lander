@@ -49,6 +49,9 @@ export const manageForceSettings = (
   const connectButton = $("#sensorConnect");
   const tareButton = $("#sensorTare");
   const sensorHint = $("#sensorHint");
+  const sensorActions = $("#sensorActions");
+  const bluefyActions = $("#bluefyActions");
+  const copyLinkButton = $("#copyGameLink");
   const meter = $("#forceMeter");
   const forceValue = $("#forceValue");
   const throttleValue = $("#throttleValue");
@@ -97,9 +100,15 @@ export const manageForceSettings = (
     measureButton.disabled = status !== "connected" || measuring !== null;
     deviceSelect.disabled = status === "connecting" || status === "connected";
 
+    const needsBluefy = sensor.needsBluefy();
+    sensorActions.hidden = needsBluefy;
+    bluefyActions.hidden = !needsBluefy;
+
     const deviceNote = DEVICES[deviceSelect.value].note;
     sensorHint.textContent =
-      status === "unsupported"
+      needsBluefy
+        ? "Safari and other iOS browsers can't use Bluetooth. Install the free Bluefy browser, then open this page in it to fly with your force sensor."
+        : status === "unsupported"
         ? "This browser can't use Bluetooth. Try Chrome or Edge on a computer or Android phone."
         : status === "error" || status === "lost"
         ? sensor.getError()
@@ -193,6 +202,21 @@ export const manageForceSettings = (
   });
 
   tareButton.addEventListener("click", () => sensor.tare());
+
+  // So the page can be pasted into Bluefy once it's installed
+  let copyResetTimer;
+  copyLinkButton.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(location.href.split("#")[0]);
+      copyLinkButton.textContent = "Link copied";
+    } catch {
+      copyLinkButton.textContent = "Couldn't copy";
+    }
+    clearTimeout(copyResetTimer);
+    copyResetTimer = setTimeout(() => {
+      copyLinkButton.textContent = "Copy link";
+    }, 2000);
+  });
 
   deviceSelect.addEventListener("change", renderStatus);
 

@@ -171,6 +171,9 @@ const SENSOR_WAIT_TEXT = {
   connecting: "Connecting to your force sensor…",
   lost: "The force sensor disconnected. Reconnect to carry on.",
   connected: "Waiting for data from the force sensor…",
+  unsupported: forceSensor.needsBluefy()
+    ? "Flying with a force sensor on iPhone or iPad needs the Bluefy browser."
+    : "This browser can't use Bluetooth, which the force sensor needs.",
 };
 
 const updatePause = () => {

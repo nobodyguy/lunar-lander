@@ -29,7 +29,7 @@ The built game is an installable PWA: use the browser's Install (or Add to Home 
 
 ## Force sensor controls
 
-In Settings, Controls → Force sensor flies the lander with a Bluetooth force sensor or hanging scale (Tindeq Progressor by default) through the Web Bluetooth API, so it needs Chrome or Edge. Pulling fires the main engine, with thrust following the pull; an autopilot (`lander/autopilot.js`) works the steering thrusters to reach the nearest pad and level out for touchdown. A fresh pull also plays again after a round.
+In Settings, Controls → Force sensor flies the lander with a Bluetooth force sensor or hanging scale (Tindeq Progressor by default) through the Web Bluetooth API, so it needs Chrome or Edge, or [Bluefy](https://apps.apple.com/app/id1492822055) on iPhone and iPad, where the game points players to it. Pulling fires the main engine, with thrust following the pull; an autopilot (`lander/autopilot.js`) works the steering thrusters to reach the nearest pad and level out for touchdown. A fresh pull also plays again after a round.
 
 - **Max force**: the pull that gives full thrust. Measure sets it from your hardest pull over three seconds.
 - **Hover point**: the share of max force that holds the lander still.

@@ -613,6 +613,7 @@ li.strikethrough {
 }
 
 .forceSettings[hidden],
+.sensorActions[hidden],
 .sensorPill[hidden],
 .settingsGroup[hidden] {
   display: none;
@@ -778,6 +779,11 @@ li.strikethrough {
   font-weight: 500;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+a.smallButton {
+  text-align: center;
+  text-decoration: none;
 }
 
 .smallButton--primary {

@@ -51,6 +51,14 @@ export const batteryPercent = (raw) => {
   return Math.round(Math.min(100, Math.max(0, percent)));
 };
 
+// Every iOS browser runs on Safari's engine, which has no Web Bluetooth, so
+// iOS players are pointed to Bluefy, a browser that adds it. iPads ask for
+// the desktop site, so they read as a Mac with a touchscreen.
+const isIOS = () =>
+  typeof navigator !== "undefined" &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+
 // status: "unsupported" | "disconnected" | "connecting" | "connected" | "lost" | "error"
 export const makeForceSensor = () => {
   const supported =
@@ -192,6 +200,8 @@ export const makeForceSensor = () => {
     getDeviceKey: () => deviceKey,
     isTaring: () => performance.now() < taringUntil,
     isSupported: () => supported,
+    // True on iOS outside Bluefy, where the way to fly is to switch browsers
+    needsBluefy: () => !supported && isIOS(),
     subscribe: (listener) => {
       statusListeners.add(listener);
       return () => statusListeners.delete(listener);
