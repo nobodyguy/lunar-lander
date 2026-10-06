@@ -174,6 +174,13 @@
       <span class="statusDot" aria-hidden="true"></span>
       <span id="sensorPillText"></span>
     </button>
+    <button id="toggleSound" class="settingsButton soundButton" type="button" aria-label="Mute sound" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M11 5 6 9H2v6h4l5 4V5z"/>
+        <path class="soundOn" d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        <path class="soundOff" d="M23 9l-6 6M17 9l6 6"/>
+      </svg>
+    </button>
     <button id="openSettings" class="settingsButton" type="button" aria-label="Settings" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -275,6 +282,14 @@
             <label><input type="radio" name="fuel" value="limited" /><span>Limited</span></label>
           </div>
           <p class="settingsHint">A limited tank holds 10 seconds of main engine burn. The steering thrusters use fuel too, but slower.</p>
+        </fieldset>
+        <fieldset class="settingsGroup">
+          <legend>Sound</legend>
+          <div class="segmented">
+            <label><input type="radio" name="sound" value="on" /><span>On</span></label>
+            <label><input type="radio" name="sound" value="off" /><span>Off</span></label>
+          </div>
+          <p class="settingsHint">The speaker button beside Settings also turns sound on and off.</p>
         </fieldset>
         <button class="button settingsDone" type="submit">Done</button>
       </form>

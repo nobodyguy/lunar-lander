@@ -338,8 +338,9 @@ li.strikethrough {
   user-select: none;
   -webkit-user-select: none;
   top: 0;
-  /* 7px button offset + 40px button, less its icon's 9px inset, plus a gap */
-  right: 48px;
+  /* 7px button offset + two 40px buttons, less the icon's 9px inset, plus a
+     gap */
+  right: 88px;
   line-height: 40px;
   font-size: var(--stats-font-size);
   text-transform: uppercase;
@@ -398,9 +399,23 @@ li.strikethrough {
     color: var(--headline-font-color);
   }
 
-  .settingsButton:hover svg {
+  #openSettings:hover svg {
     transform: rotate(45deg);
   }
+}
+
+/* Sits just left of the gear */
+.soundButton {
+  right: 47px;
+}
+
+.soundButton svg {
+  stroke-linecap: round;
+}
+
+.soundButton[aria-pressed="true"] .soundOn,
+.soundButton[aria-pressed="false"] .soundOff {
+  display: none;
 }
 
 .settingsButton:focus-visible {

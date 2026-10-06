@@ -1,8 +1,11 @@
 import { randomBool } from "./helpers.js";
 
-export const makeAudioManager = () => {
+export const makeAudioManager = (settings) => {
   let hasInitialized = false;
   let audioCTX;
+  // Every Web Audio source plays through this, so muting silences sounds
+  // already playing, like a held engine, and unmuting brings them back
+  let masterGain;
   let engineFileBuffer;
   let boosterFileBuffer;
   let crash1FileBuffer;
@@ -31,6 +34,8 @@ export const makeAudioManager = () => {
     if (!hasInitialized) {
       hasInitialized = true;
       audioCTX = new AudioContext();
+      masterGain = new GainNode(audioCTX);
+      masterGain.connect(audioCTX.destination);
       engineFileBuffer = _loadFile(audioCTX, "./audio/engine.mp3");
       boosterFileBuffer = _loadFile(audioCTX, "./audio/booster.mp3");
       crash1FileBuffer = _loadFile(audioCTX, "./audio/crash1.mp3");
@@ -49,9 +54,22 @@ export const makeAudioManager = () => {
       // ringer channel.
       themeAudio = new Audio("./audio/theme.mp3");
       themeAudio.loop = true;
+      _applyMute();
       themeAudio.play().catch(() => {});
     }
   };
+
+  // The theme is muted rather than paused, so it keeps holding iOS on the
+  // main sound channel and picks up where it was when sound comes back
+  const _applyMute = () => {
+    const muted = settings.get("sound") === "off";
+    masterGain.gain.value = muted ? 0 : 1;
+    themeAudio.muted = muted;
+  };
+
+  settings.subscribe((key) => {
+    if (key === "sound" && hasInitialized) _applyMute();
+  });
 
   // Retried on every tap: iOS won't unlock audio from a touchstart, and
   // suspends it again after interruptions like calls
@@ -101,7 +119,7 @@ export const makeAudioManager = () => {
         buffer: buffer,
         loop: loop,
       });
-      trackSource.connect(audioCTX.destination);
+      trackSource.connect(masterGain);
       trackSource.start();
       return trackSource;
     };

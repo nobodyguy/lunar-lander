@@ -8,6 +8,7 @@ const OPTIONS = {
   device: Object.keys(DEVICES),
   difficulty: ["easy", "medium", "hard"],
   curve: ["linear", "exponential"],
+  sound: ["on", "off"],
   // kg that maps to full throttle
   fmax: { min: 2, max: 200, step: 0.5 },
   // % of fmax at which the lander hovers
@@ -23,6 +24,7 @@ const DEFAULTS = {
   device: "progressor",
   difficulty: "medium",
   curve: "linear",
+  sound: "on",
   fmax: 20,
   hover: 30,
   threshold: 1,
@@ -142,4 +144,27 @@ export const manageSettingsDialog = (settings, { onOpen, onClose }) => {
   openButton.addEventListener("click", open);
 
   return { open };
+};
+
+// A quick toggle beside the gear, kept in step with the Sound setting
+export const manageSoundButton = (settings) => {
+  const button = document.querySelector("#toggleSound");
+
+  const render = () => {
+    const muted = settings.get("sound") === "off";
+    button.setAttribute("aria-pressed", muted);
+    button.title = muted ? "Unmute sound" : "Mute sound";
+  };
+
+  button.addEventListener("click", () => {
+    settings.set("sound", settings.get("sound") === "off" ? "on" : "off");
+    // Otherwise it keeps focus, and Space, the Play Again shortcut, would
+    // also toggle it
+    button.blur();
+  });
+
+  settings.subscribe((key) => {
+    if (key === "sound") render();
+  });
+  render();
 };

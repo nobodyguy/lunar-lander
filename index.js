@@ -26,7 +26,11 @@ import { makeChallengeManager } from "./challenge.js";
 import { makeSeededRandom } from "./helpers/seededrandom.js";
 import { makeBonusPointsManager } from "./bonuspoints.js";
 import { makeTheme } from "./theme.js";
-import { makeSettingsManager, manageSettingsDialog } from "./settings.js";
+import {
+  makeSettingsManager,
+  manageSettingsDialog,
+  manageSoundButton,
+} from "./settings.js";
 import { TRANSITION_TO_SPACE } from "./helpers/constants.js";
 import { makeRules } from "./helpers/rules.js";
 import { makeForceSensor } from "./forcesensor/device.js";
@@ -44,7 +48,8 @@ import {
 // SETUP
 
 keepScreenOn();
-const audioManager = makeAudioManager();
+const settings = makeSettingsManager();
+const audioManager = makeAudioManager(settings);
 const [CTX, canvasWidth, canvasHeight, canvasElement, scaleFactor] =
   generateCanvas({
     width: window.innerWidth,
@@ -53,7 +58,6 @@ const [CTX, canvasWidth, canvasHeight, canvasElement, scaleFactor] =
   });
 const challengeManager = makeChallengeManager();
 const seededRandom = makeSeededRandom();
-const settings = makeSettingsManager();
 const forceSensor = makeForceSensor();
 const forceInput = makeForceInput(forceSensor, settings);
 
@@ -217,6 +221,8 @@ const settingsDialog = manageSettingsDialog(settings, {
     updatePause();
   },
 });
+
+manageSoundButton(settings);
 
 const forceSettings = manageForceSettings(settings, forceSensor, forceInput, {
   openSettings: settingsDialog.open,
