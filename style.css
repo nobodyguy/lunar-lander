@@ -188,8 +188,8 @@ li.strikethrough {
 
 .tableRow {
   display: flex;
-  justify-content: space-between;
-  position: relative;
+  align-items: center;
+  gap: 8px;
 }
 
 /* display: flex above would otherwise override the hidden attribute */
@@ -197,31 +197,20 @@ li.strikethrough {
   display: none;
 }
 
+/* The line fills only the gap between label and value. It used to run the
+   full width under blurred pills that hid it behind the text, but a dozen
+   backdrop blurs over the still-animating canvas halved the frame rate on
+   phones for as long as the stats were showing. */
 .tableRow::before {
   content: "";
-  position: absolute;
+  order: 1;
+  flex: 1;
   background: rgba(255, 255, 255, 0.3);
   height: 1px;
-  top: 50%;
-  width: 100%;
-}
-
-.tableLabel {
-  z-index: 1;
-  padding: 0 8px;
-  margin-left: -8px;
-  border-radius: 32px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .tableValue {
-  z-index: 1;
-  padding: 0 8px;
-  margin-right: -8px;
-  border-radius: 32px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  order: 2;
 }
 
 .buttonContainer {
