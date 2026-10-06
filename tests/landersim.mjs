@@ -53,14 +53,25 @@ export const simulateLanding = ({
       Math.floor(numPoints / 3) - 1
     ) * segment;
   const pads = [
-    { name: "small", x: between(0.05, 0.3) * canvasWidth, width: padWidth(1) },
-    { name: "large", x: between(0.55, 0.7) * canvasWidth, width: padWidth(4) },
+    {
+      name: "small",
+      x: between(0.05, 0.3) * canvasWidth,
+      y: groundY,
+      width: padWidth(1),
+    },
+    {
+      name: "large",
+      x: between(0.55, 0.7) * canvasWidth,
+      y: groundY,
+      width: padWidth(4),
+    },
   ];
 
   const autopilot = makeAutopilot({
     canvasWidth,
     getPads: () => pads,
     getGroundY: () => groundY,
+    getGravity: () => gravity,
   });
 
   // lander.js resetProps

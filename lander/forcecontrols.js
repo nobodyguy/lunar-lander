@@ -14,6 +14,7 @@ export const makeForceControls = (state, lander, audioManager, forceInput) => {
     canvasWidth,
     getPads: () => terrain.getLandingData().landingSurfaces,
     getGroundY: (x) => terrain.getGroundHeightAtX(x),
+    getGravity: () => rules().gravity,
   });
 
   let attached = false;
