@@ -321,15 +321,14 @@ li.strikethrough {
   display: block;
 }
 
-.topRightCorner {
+.belowChallenge {
   position: absolute;
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
-  top: 0;
-  /* 7px button offset + two 40px buttons, less the icon's 9px inset, plus a
-     gap */
-  right: 88px;
+  /* Directly under the 40px line of the daily challenge text */
+  top: calc(var(--stats-font-size) * 1.6);
+  left: 16px;
   line-height: 40px;
   font-size: var(--stats-font-size);
   text-transform: uppercase;
