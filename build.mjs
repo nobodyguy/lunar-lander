@@ -21,6 +21,8 @@ await build({
   minify: true,
   format: "esm",
   target: "es2020",
+  // index.js waits for the window to be sized before building the world
+  supported: { "top-level-await": true },
   // Assets are referenced at runtime by relative path and copied as-is below.
   external: ["*.png", "*.jpg", "*.mp3"],
 });

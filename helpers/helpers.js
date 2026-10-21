@@ -31,6 +31,25 @@ export const generateCanvas = ({ width, height, attachNode }) => {
   return [context, width, height, element, scale];
 };
 
+// An installed PWA launched cold on Android can run this script before its
+// window has been sized, so innerWidth and innerHeight both read 0. The world
+// is generated once at that size, which put the ground at y = 0: the lander
+// started below it and every round, replays included, crashed on its first
+// frame. Resolves once the window has a real size.
+export const waitForViewport = () =>
+  new Promise((resolve) => {
+    const check = () => {
+      if (window.innerWidth > 0 && window.innerHeight > 0) {
+        window.removeEventListener("resize", check);
+        resolve();
+      } else {
+        window.requestAnimationFrame(check);
+      }
+    };
+    window.addEventListener("resize", check);
+    check();
+  });
+
 // A frame gap longer than this is treated as a pause rather than as elapsed
 // game time. requestAnimationFrame is throttled to zero while a tab is
 // hidden, so without a ceiling the first frame back carries the whole hidden

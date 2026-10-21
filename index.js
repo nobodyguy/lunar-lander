@@ -8,6 +8,7 @@ import {
   seededRandomBool,
   transition,
   UNIT_SYSTEMS,
+  waitForViewport,
 } from "./helpers/helpers.js";
 import { makeLander } from "./lander/lander.js";
 import { makeToyLander } from "./lander/toylander.js";
@@ -50,6 +51,7 @@ import {
 keepScreenOn();
 const settings = makeSettingsManager();
 const audioManager = makeAudioManager(settings);
+await waitForViewport();
 const [CTX, canvasWidth, canvasHeight, canvasElement, scaleFactor] =
   generateCanvas({
     width: window.innerWidth,
