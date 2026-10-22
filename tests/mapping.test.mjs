@@ -6,6 +6,7 @@ import {
   hoverForce,
   isHoverBelowThreshold,
   makeThresholdGate,
+  formatForce,
 } from "../forcesensor/mapping.js";
 
 const linear = { fmax: 20, hover: 30, curve: "linear", threshold: 1 };
@@ -51,4 +52,13 @@ test("threshold gate turns on above 1.0 kg and off below 0.7 kg", () => {
     sequence.map((force) => gate.update(force, 1)),
     expected
   );
+});
+
+// Compared against each other, as the decimal separator follows the locale
+test("force readings that round to zero never show as -0.0", () => {
+  assert.equal(formatForce(-0.04), formatForce(0));
+  assert.equal(formatForce(-0), formatForce(0));
+  assert.equal(formatForce(0.04), formatForce(0));
+  assert.match(formatForce(-0.06), /^-/);
+  assert.notEqual(formatForce(-0.06), formatForce(0));
 });

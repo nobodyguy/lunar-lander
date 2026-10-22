@@ -567,7 +567,7 @@ export const makeLander = (state, onGameEnd) => {
     );
     CTX.fillStyle = angleColor;
     CTX.fillText(
-      `${getAngleDeltaUprightWithSign(_angle).toFixed(1)}°`,
+      `${formatNumber(getAngleDeltaUprightWithSign(_angle), 1)}°`,
       xPosBasis,
       yPosBasis
     );

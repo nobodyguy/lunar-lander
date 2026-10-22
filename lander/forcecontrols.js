@@ -1,4 +1,5 @@
 import { makeAutopilot } from "./autopilot.js";
+import { formatForce } from "../forcesensor/mapping.js";
 
 // The force sensor's stand-in for makeControls. Same attach/detach shape, so
 // index.js can swap one for the other. The pull sets the main engine's thrust
@@ -99,7 +100,7 @@ export const makeForceControls = (state, lander, audioManager, forceInput) => {
     CTX.font = "400 10px -apple-system, BlinkMacSystemFont, sans-serif";
     CTX.textAlign = "center";
     CTX.fillText(
-      `${forceInput.getForce().toFixed(1)} kg`,
+      `${formatForce(forceInput.getForce())} kg`,
       x + width / 2,
       top - 8
     );

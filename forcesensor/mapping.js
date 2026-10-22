@@ -2,6 +2,8 @@
 // device and the DOM so the settings panel can preview exactly what the game
 // will do with a given pull.
 
+import { formatNumber } from "../helpers/helpers.js";
+
 // The curve exponent for "exponential". At 3 the first half of the usable
 // force range only reaches ~18% throttle, which leaves room to feather a hover.
 const EXPONENTIAL_K = 3;
@@ -43,6 +45,10 @@ export const isHoverBelowThreshold = (mapping) =>
   hoverForce(mapping) <= mapping.threshold;
 
 export const releaseForce = (threshold) => threshold * RELEASE_RATIO;
+
+// One decimal. A sensor at rest jitters either side of zero, and a reading
+// that rounds to zero shows as 0.0 rather than -0.0.
+export const formatForce = (kg) => formatNumber(kg, 1);
 
 // Schmitt trigger: on above the threshold, off below RELEASE_RATIO of it, so a
 // force hovering right at the threshold doesn't chatter the engine on and off

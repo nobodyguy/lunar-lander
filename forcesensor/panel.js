@@ -5,10 +5,12 @@ import {
   hoverForce,
   isHoverBelowThreshold,
   releaseForce,
+  formatForce,
 } from "./mapping.js";
 import { DIFFICULTY_DESCRIPTIONS } from "../helpers/rules.js";
 
-const MEASURE_MS = 3000;
+const MEASURE_MS = 5000;
+const SETTINGS_BATTERY_MAX_AGE_MS = 60 * 1000;
 
 const STATUS_TEXT = {
   unsupported: "Bluetooth unavailable",
@@ -28,7 +30,7 @@ const CONNECT_LABEL = {
   error: "Try again",
 };
 
-const formatKg = (kg) => `${kg.toFixed(1)} kg`;
+const formatKg = (kg) => `${formatForce(kg)} kg`;
 
 // Wires the force sensor parts of the settings sheet, and the status pill
 // shown over the game while force controls are selected
@@ -164,7 +166,7 @@ export const manageForceSettings = (
     const mapping = getMapping(settings);
     meter.style.setProperty("--force", `${Math.min(100, Math.max(0, (force / mapping.fmax) * 100))}%`);
     meter.classList.toggle("active", forceInput.isActive());
-    forceValue.textContent = force.toFixed(1);
+    forceValue.textContent = formatForce(force);
     throttleValue.textContent = forceInput.isActive()
       ? `${Math.round(forceToThrottle(force, mapping) * 100)}% thrust`
       : "engine off";
@@ -247,6 +249,9 @@ export const manageForceSettings = (
 
   // Called by the settings dialog as it opens
   const onOpen = () => {
+    // The game is paused and the battery is on show, so a fresher reading is
+    // worth the brief gap in the live force meter
+    sensor.refreshBattery(SETTINGS_BATTERY_MAX_AGE_MS);
     renderControls();
     renderMapping();
     requestAnimationFrame(renderLive);

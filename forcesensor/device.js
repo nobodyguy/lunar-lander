@@ -11,7 +11,12 @@ import { SimulatedSensor, isSimulatorEnabled } from "./simulator.js";
 
 // The force-measuring devices grip-connect supports. The first is the default.
 export const DEVICES = {
-  progressor: { label: "Tindeq Progressor", make: () => new Progressor() },
+  progressor: {
+    label: "Tindeq Progressor",
+    make: () => new Progressor(),
+    // Any command (tare, battery) ends its weight stream until it's restarted
+    commandsStopStream: true,
+  },
   forceboard: { label: "PitchSix Force Board", make: () => new ForceBoard() },
   whc06: {
     label: "Weiheng WH-C06",
@@ -33,9 +38,14 @@ export const DEVICES = {
 // A stream that has gone quiet for this long is treated as zero force, so a
 // sensor that drops out mid-flight cuts the engine rather than holding it on
 const STALE_AFTER_MS = 1500;
-const BATTERY_POLL_MS = 60000;
 // Devices without hardware tare average the stream for this long instead
 const SOFTWARE_TARE_MS = 2000;
+const HARDWARE_TARE_MS = 600;
+// Battery drains slowly, so a reading this fresh is left alone. Reads only
+// happen between rounds or in settings, never mid-flight.
+const BATTERY_MAX_AGE_MS = 5 * 60 * 1000;
+// Above this the player is pulling, and a battery read could cut the engine
+const PULLING_KG = 0.3;
 
 const withTimeout = (promise, ms) =>
   Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms))]);
@@ -72,8 +82,11 @@ export const makeForceSensor = () => {
   let force = 0;
   let lastSampleAt = 0;
   let battery = null;
+  let batteryReadAt = 0;
+  let readingBattery = false;
   let taringUntil = 0;
-  let batteryTimer = null;
+  let watchdogTimer = null;
+  let restarting = false;
 
   const statusListeners = new Set();
   const sampleListeners = new Set();
@@ -86,8 +99,14 @@ export const makeForceSensor = () => {
     emit();
   };
 
+  const isStreaming = () =>
+    status === "connected" && performance.now() - lastSampleAt < STALE_AFTER_MS;
+  const isTaring = () => performance.now() < taringUntil;
+  const commandsStopStream = () => !!DEVICES[deviceKey]?.commandsStopStream;
+
   const readBattery = async () => {
     if (!device?.battery) return;
+    batteryReadAt = performance.now();
     try {
       const percent = batteryPercent(await withTimeout(device.battery(), 1500));
       if (percent !== null) {
@@ -97,9 +116,34 @@ export const makeForceSensor = () => {
     } catch {}
   };
 
+  // Skipped if the device was swapped or dropped since the caller began
+  const restartStream = async (current) => {
+    if (restarting || current !== device || status !== "connected") return;
+    if (!current.stream) return;
+    restarting = true;
+    try {
+      await withTimeout(current.stream(), 1000);
+    } catch {}
+    restarting = false;
+  };
+
+  // Called at moments a brief dropout can't cost anything: between rounds and
+  // while settings are open. A read never happens mid-pull, and on a sensor
+  // whose stream it stops, the stream is started again straight after.
+  const refreshBattery = async (maxAgeMs = BATTERY_MAX_AGE_MS) => {
+    if (status !== "connected" || readingBattery || isTaring()) return;
+    if (performance.now() - batteryReadAt < maxAgeMs) return;
+    if (isStreaming() && force > PULLING_KG) return;
+    const current = device;
+    readingBattery = true;
+    await readBattery();
+    readingBattery = false;
+    if (commandsStopStream()) await restartStream(current);
+  };
+
   const stopTimers = () => {
-    clearInterval(batteryTimer);
-    batteryTimer = null;
+    clearInterval(watchdogTimer);
+    watchdogTimer = null;
   };
 
   // Fired by the browser when the link drops on its own. The library already
@@ -129,6 +173,8 @@ export const makeForceSensor = () => {
       lastSampleAt = performance.now();
       sampleListeners.forEach((listener) => listener(force));
     }, "kg");
+    // The library logs every pull start and stop to the console by default
+    current.active?.(() => {});
 
     setStatus("connecting");
 
@@ -140,7 +186,10 @@ export const makeForceSensor = () => {
         // Some scales stream as soon as they connect and have no stream()
         await current.stream?.();
         lastSampleAt = performance.now();
-        batteryTimer = setInterval(readBattery, BATTERY_POLL_MS);
+        // Last resort for a stream that stops for any other reason
+        watchdogTimer = setInterval(() => {
+          if (!isStreaming()) restartStream(current);
+        }, STALE_AFTER_MS);
         setStatus("connected");
       },
       (connectError) => {
@@ -163,6 +212,7 @@ export const makeForceSensor = () => {
     stopTimers();
     force = 0;
     battery = null;
+    batteryReadAt = 0;
     if (current) {
       current.bluetooth?.removeEventListener("gattserverdisconnected", onLost);
       if (current.isConnected()) {
@@ -177,20 +227,23 @@ export const makeForceSensor = () => {
 
   const tare = () => {
     if (status !== "connected") return;
-    device.tare(SOFTWARE_TARE_MS);
+    const current = device;
+    current.tare(SOFTWARE_TARE_MS);
     taringUntil =
-      performance.now() + (device.usesHardwareTare ? 600 : SOFTWARE_TARE_MS);
+      performance.now() +
+      (current.usesHardwareTare ? HARDWARE_TARE_MS : SOFTWARE_TARE_MS);
     emit();
-    setTimeout(emit, taringUntil - performance.now() + 50);
+    setTimeout(async () => {
+      if (commandsStopStream()) await restartStream(current);
+      emit();
+    }, taringUntil - performance.now() + 50);
   };
-
-  const isStreaming = () =>
-    status === "connected" && performance.now() - lastSampleAt < STALE_AFTER_MS;
 
   return {
     connect,
     disconnect,
     tare,
+    refreshBattery,
     isStreaming,
     // Zero whenever the stream isn't live, so nothing downstream has to ask
     getForce: () => (isStreaming() ? force : 0),
@@ -198,7 +251,7 @@ export const makeForceSensor = () => {
     getError: () => error,
     getBattery: () => battery,
     getDeviceKey: () => deviceKey,
-    isTaring: () => performance.now() < taringUntil,
+    isTaring,
     isSupported: () => supported,
     // True on iOS outside Bluefy, where the way to fly is to switch browsers
     needsBluefy: () => !supported && isIOS(),

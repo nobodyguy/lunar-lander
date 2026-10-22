@@ -248,12 +248,16 @@ const fixedDecimalFormatters = new Map();
 
 export const formatNumber = (value, decimals = 0) => {
   if (!fixedDecimalFormatters.has(decimals)) {
+    const options = {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    };
+    // "negative" keeps the minus off values that round to zero, so -0.04
+    // shows as 0.0 rather than -0.0. Older browsers reject it.
     fixedDecimalFormatters.set(
       decimals,
-      makeNumberFormatter({
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      })
+      makeNumberFormatter({ ...options, signDisplay: "negative" }) ??
+        makeNumberFormatter(options)
     );
   }
 

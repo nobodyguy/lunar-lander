@@ -332,6 +332,8 @@ function onGameEnd(data) {
   gameEnded = true;
   gameControls().detachEventListeners();
   bonusPointsManager.hide();
+  // Between rounds is the one time a battery read can't disturb the flight
+  forceSensor.refreshBattery();
 
   const finalScore = data.landerScore + bonusPointsManager.getTotalPoints();
   const scoreDescription = data.landed
