@@ -55,6 +55,31 @@ const EXTREME_ENGINE_CUTOUT = {
   minAltitude: 220,
 };
 
+// The asteroids that cross the screen during a round. A round sends them
+// with the given chance; the first comes between minDelayMs and maxDelayMs,
+// and any others follow at gaps between minGapMs and maxGapMs. This is the
+// standard game's single coin toss.
+export const ASTEROIDS = {
+  chance: 0.5,
+  count: 1,
+  minDelayMs: 2000,
+  maxDelayMs: 15000,
+  minGapMs: 0,
+  maxGapMs: 0,
+};
+
+// Extreme always sends a few. One takes 2–6 s to cross the screen, so a gap
+// of at least 6 s keeps them one at a time and each can be dodged on its own.
+// A short round only meets the first one or two.
+const EXTREME_ASTEROIDS = {
+  chance: 1,
+  count: 3,
+  minDelayMs: 3000,
+  maxDelayMs: 8000,
+  minGapMs: 6000,
+  maxGapMs: 10000,
+};
+
 // Force sensor play has one difficulty switch that sets everything below.
 // Hard matches the physics and tolerances of the standard game; the force
 // sensor's autopilot is what makes it playable at all with a single input.
@@ -69,12 +94,13 @@ const EXTREME_ENGINE_CUTOUT = {
 //               DISTURBANCE-shaped object
 // engineCutouts random failures of the main engine, false or an
 //               ENGINE_CUTOUT-shaped object
+// asteroids     an ASTEROIDS-shaped object
 // launchScale   multiplies the random starting sideways speed, spin and tilt
 // largePad      false leaves only the small pad
 //
 // Extreme goes past the standard game: the same pads and tolerances, but
 // only the small pad, a short tank, a rougher start and longer, more
-// frequent gusts and cutouts.
+// frequent gusts and cutouts, and a few asteroids every round.
 export const DIFFICULTIES = {
   easy: {
     gravityScale: 0.8,
@@ -85,6 +111,7 @@ export const DIFFICULTIES = {
     autopilot: { maxTilt: 30, gain: 1 },
     disturbances: false,
     engineCutouts: false,
+    asteroids: ASTEROIDS,
     launchScale: 1,
     largePad: true,
   },
@@ -97,6 +124,7 @@ export const DIFFICULTIES = {
     autopilot: { maxTilt: 22, gain: 0.8 },
     disturbances: false,
     engineCutouts: false,
+    asteroids: ASTEROIDS,
     launchScale: 1,
     largePad: true,
   },
@@ -109,6 +137,7 @@ export const DIFFICULTIES = {
     autopilot: { maxTilt: 15, gain: 0.6 },
     disturbances: DISTURBANCE,
     engineCutouts: ENGINE_CUTOUT,
+    asteroids: ASTEROIDS,
     launchScale: 1,
     largePad: true,
   },
@@ -121,6 +150,7 @@ export const DIFFICULTIES = {
     autopilot: { maxTilt: 15, gain: 0.6 },
     disturbances: EXTREME_DISTURBANCE,
     engineCutouts: EXTREME_ENGINE_CUTOUT,
+    asteroids: EXTREME_ASTEROIDS,
     launchScale: 1.6,
     largePad: false,
   },
@@ -130,7 +160,7 @@ export const DIFFICULTY_DESCRIPTIONS = {
   easy: "Low gravity, unlimited fuel, wide pads and a forgiving touchdown. The autopilot steers hard.",
   medium: "Normal gravity, a large tank, bigger pads and a little extra touchdown tolerance.",
   hard: "Heavy gravity, a standard tank, standard pads and tolerances, a gentle autopilot, sudden gusts and brief engine failures.",
-  extreme: "Hard, but with a small tank, only the small pad, a rough start, long gusts and longer, more frequent engine failures.",
+  extreme: "Hard, but with a small tank, only the small pad, a rough start, long gusts and longer, more frequent engine failures, and several asteroids every round.",
 };
 
 // Read every frame by the lander, so the object is rebuilt only when one of
@@ -156,6 +186,7 @@ export const makeRules = (settings) => {
         autopilot: null,
         disturbances: false,
         engineCutouts: false,
+        asteroids: ASTEROIDS,
         launchScale: 1,
         largePad: true,
       };
