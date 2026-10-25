@@ -109,11 +109,33 @@ const gameControls = () =>
 const tally = makeTallyManger();
 
 const asteroidRandom = seededRandom.getStream("asteroids");
-let sendAsteroid = seededRandomBool(asteroidRandom);
-let asteroidCountdown = seededRandomBetween(2000, 15000, asteroidRandom);
-let asteroids = [
-  makeAsteroid(appState, lander.getDisplayPosition, onAsteroidImpact),
-];
+// Each asteroid comes with the round time it launches at. The draws keep the
+// order of the original single asteroid (send, delay, asteroid) so a one
+// asteroid round still gets the same daily challenge asteroid.
+const scheduleAsteroids = () => {
+  const { chance, count, minDelayMs, maxDelayMs, minGapMs, maxGapMs } =
+    appState.get("rules")().asteroids;
+  sendAsteroid = seededRandomBool(asteroidRandom, 1 - chance);
+  let launchAt = seededRandomBetween(minDelayMs, maxDelayMs, asteroidRandom);
+  const scheduled = [];
+  for (let i = 0; i < count; i++) {
+    if (i > 0) {
+      launchAt += seededRandomBetween(minGapMs, maxGapMs, asteroidRandom);
+    }
+    scheduled.push({
+      launchAt,
+      launched: false,
+      asteroid: makeAsteroid(
+        appState,
+        lander.getDisplayPosition,
+        onAsteroidImpact
+      ),
+    });
+  }
+  return scheduled;
+};
+let sendAsteroid = false;
+let asteroids = scheduleAsteroids();
 let spaceAsteroids = [];
 let randomConfetti = [];
 
@@ -298,8 +320,15 @@ const animationObject = animate((timeSinceStart, deltaTime) => {
     // Move asteroids as lander flies high
     CTX.save();
     CTX.translate(0, terrainOffset);
-    if (sendAsteroid && timeSinceStart > asteroidCountdown) {
-      asteroids.forEach((a) => a.draw(deltaTime, terrainOffset));
+    // Extreme's stream would carry on over the score screen, so one that
+    // hasn't launched by the end of the round never does
+    if (sendAsteroid) {
+      asteroids.forEach((a) => {
+        if (!a.launched && !gameEnded && timeSinceStart > a.launchAt) {
+          a.launched = true;
+        }
+        if (a.launched) a.asteroid.draw(deltaTime, terrainOffset);
+      });
     }
     CTX.restore();
 
@@ -385,11 +414,7 @@ function resetRoundState() {
   lander.updateLandingData();
   lander.resetProps();
   stars.reGenerate();
-  sendAsteroid = seededRandomBool(asteroidRandom);
-  asteroidCountdown = seededRandomBetween(2000, 15000, asteroidRandom);
-  asteroids = [
-    makeAsteroid(appState, lander.getDisplayPosition, onAsteroidImpact),
-  ];
+  asteroids = scheduleAsteroids();
   spaceAsteroids = [];
   bonusPointsManager.reset();
 }
@@ -414,16 +439,21 @@ document.addEventListener("keydown", ({ key }) => {
 document.addEventListener("keydown", ({ key }) => {
   if (key === "m") {
     sendAsteroid = true;
-    asteroidCountdown = 0;
-    asteroids.push(
-      makeAsteroid(appState, lander.getDisplayPosition, onAsteroidImpact)
-    );
+    asteroids.push({
+      launchAt: 0,
+      launched: true,
+      asteroid: makeAsteroid(
+        appState,
+        lander.getDisplayPosition,
+        onAsteroidImpact
+      ),
+    });
   }
 });
 
 document.addEventListener("keydown", ({ key }) => {
   if (key === "x") {
-    asteroids.forEach((a) => a.destroy());
+    asteroids.forEach(({ asteroid }) => asteroid.destroy());
     spaceAsteroids.forEach((a) => a.destroy());
   }
 });
