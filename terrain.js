@@ -99,8 +99,11 @@ export const makeTerrain = (state) => {
     landingMinHeight = canvasHeight - terrainConfig.landingMinInset;
 
     generateLandingZoneSpans();
+    // The large pad is still generated when a difficulty leaves it out, so
+    // the small pad and the terrain take the same draws either way
+    const largeLandingSurface = generateLandingSurface(4, "largeLandingSurface");
     landingSurfaces = [
-      generateLandingSurface(4, "largeLandingSurface"),
+      ...(state.get("rules")().largePad ? [largeLandingSurface] : []),
       generateLandingSurface(1, "smallLandingSurface"),
     ];
 

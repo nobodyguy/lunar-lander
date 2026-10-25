@@ -6,7 +6,7 @@ const OPTIONS = {
   fuel: ["unlimited", "limited"],
   controls: ["standard", "force"],
   device: Object.keys(DEVICES),
-  difficulty: ["easy", "medium", "hard"],
+  difficulty: ["easy", "medium", "hard", "extreme"],
   curve: ["linear", "exponential"],
   sound: ["on", "off"],
   // kg that maps to full throttle

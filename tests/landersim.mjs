@@ -8,10 +8,11 @@
 // what makes gusts and engine cutouts bite.
 
 import { makeAutopilot, signedTiltDegrees } from "../lander/autopilot.js";
-import { DIFFICULTIES, DISTURBANCE, ENGINE_CUTOUT } from "../helpers/rules.js";
+import { DIFFICULTIES } from "../helpers/rules.js";
 import {
   GRAVITY,
   INTERVAL,
+  ROTATION_FUEL_RATE,
   LANDER_WIDTH,
   LANDER_HEIGHT,
 } from "../helpers/constants.js";
@@ -23,6 +24,8 @@ const makeRandom = (seed) => {
 };
 
 const ROTATION_ACCELERATION = 0.01;
+// lander.js _thrust, the standard engine that fuelCapacity is measured in
+const STANDARD_THRUST = 0.012;
 const MAX_FRAMES = Math.round(120000 / INTERVAL);
 
 export const simulateLanding = ({
@@ -52,18 +55,19 @@ export const simulateLanding = ({
       Math.max(1, Math.round(minWidthInPoints * widthUnit * preset.padScale)),
       Math.floor(numPoints / 3) - 1
     ) * segment;
+  const largePad = {
+    name: "large",
+    x: between(0.55, 0.7) * canvasWidth,
+    y: groundY,
+    width: padWidth(4),
+  };
   const pads = [
+    ...(preset.largePad ? [largePad] : []),
     {
       name: "small",
       x: between(0.05, 0.3) * canvasWidth,
       y: groundY,
       width: padWidth(1),
-    },
-    {
-      name: "large",
-      x: between(0.55, 0.7) * canvasWidth,
-      y: groundY,
-      width: padWidth(4),
     },
   ];
 
@@ -75,29 +79,37 @@ export const simulateLanding = ({
   });
 
   // lander.js resetProps
-  const thrust = 0.012;
+  const thrust = STANDARD_THRUST;
+  const { launchScale } = preset;
   const position = {
     x: between(0.33, 0.66) * canvasWidth,
     y: LANDER_HEIGHT * 2,
   };
   const velocity = {
-    x: between(-thrust, thrust) * (canvasWidth / 10),
+    x: launchScale * between(-thrust, thrust) * (canvasWidth / 10),
     y: between(0, thrust * (canvasWidth / 10)),
   };
-  let rotationVelocity = between(-0.2, 0.2);
-  let angle = between(Math.PI * 1.5, Math.PI * 2.5);
+  let rotationVelocity = launchScale * between(-0.2, 0.2);
+  let angle =
+    Math.PI * 2 +
+    launchScale * (between(Math.PI * 1.5, Math.PI * 2.5) - Math.PI * 2);
 
-  let nextGustFrame = between(
-    DISTURBANCE.minIntervalMs,
-    DISTURBANCE.maxIntervalMs
-  ) / INTERVAL;
+  // Presets are used even when switched off, for the intervals' draws
+  const gust = disturbances || DIFFICULTIES.hard.disturbances;
+  const cutout = engineCutouts || DIFFICULTIES.hard.engineCutouts;
+  let nextGustFrame = between(gust.minIntervalMs, gust.maxIntervalMs) / INTERVAL;
+  let gustFramesLeft = 0;
+  let gustPush = 0;
+  let gustSpin = 0;
   let gusts = 0;
   let cutouts = 0;
   let lowestCutoutAltitude = Infinity;
   let cutoutUntilFrame = 0;
   let nextCutoutFrame =
-    between(ENGINE_CUTOUT.minIntervalMs, ENGINE_CUTOUT.maxIntervalMs) /
-    INTERVAL;
+    between(cutout.minIntervalMs, cutout.maxIntervalMs) / INTERVAL;
+  // Tracked but not enforced: the scripted player is slower and so thirstier
+  // than a person, so it would run dry where a person wouldn't
+  let fuelUsed = 0;
   const reactionFrames = Math.round(reactionMs / INTERVAL);
   const seenDescent = [];
   let maxTiltAfterRecovery = 0;
@@ -128,17 +140,26 @@ export const simulateLanding = ({
       Math.max(0, wantedAcceleration / Math.max(Math.cos(angle), 0.3) / maxThrust)
     );
 
-    if (disturbances && frame >= nextGustFrame) {
-      if (altitude > DISTURBANCE.minAltitude) {
-        const sign = () => (random() < 0.5 ? -1 : 1);
-        velocity.x += sign() * between(0.5, 1) * DISTURBANCE.maxPush;
-        rotationVelocity += sign() * between(0.5, 1) * DISTURBANCE.maxSpin;
-        gusts++;
+    // lander.js _applyDisturbance: a gust is spread evenly over its
+    // duration, and stops near the ground
+    if (disturbances) {
+      if (altitude < gust.minAltitude) gustFramesLeft = 0;
+      if (frame >= nextGustFrame) {
+        if (altitude >= gust.minAltitude) {
+          const sign = () => (random() < 0.5 ? -1 : 1);
+          gustFramesLeft = Math.max(1, Math.round(gust.durationMs / INTERVAL));
+          gustPush = (sign() * between(0.5, 1) * gust.maxPush) / gustFramesLeft;
+          gustSpin = (sign() * between(0.5, 1) * gust.maxSpin) / gustFramesLeft;
+          gusts++;
+        }
+        nextGustFrame =
+          frame + between(gust.minIntervalMs, gust.maxIntervalMs) / INTERVAL;
       }
-      nextGustFrame =
-        frame +
-        between(DISTURBANCE.minIntervalMs, DISTURBANCE.maxIntervalMs) /
-          INTERVAL;
+      if (gustFramesLeft > 0) {
+        velocity.x += gustPush;
+        rotationVelocity += gustSpin;
+        gustFramesLeft--;
+      }
     }
 
     // lander.js _applyEngineCutout: due cutouts wait for the engine to fire
@@ -148,20 +169,23 @@ export const simulateLanding = ({
       throttle > 0 &&
       frame >= cutoutUntilFrame &&
       frame >= nextCutoutFrame &&
-      altitude >= ENGINE_CUTOUT.minAltitude
+      altitude >= cutout.minAltitude
     ) {
       cutoutUntilFrame =
         frame +
-        between(ENGINE_CUTOUT.minDurationMs, ENGINE_CUTOUT.maxDurationMs) /
-          INTERVAL;
+        between(cutout.minDurationMs, cutout.maxDurationMs) / INTERVAL;
       nextCutoutFrame =
         cutoutUntilFrame +
-        between(ENGINE_CUTOUT.minIntervalMs, ENGINE_CUTOUT.maxIntervalMs) /
-          INTERVAL;
+        between(cutout.minIntervalMs, cutout.maxIntervalMs) / INTERVAL;
       cutouts++;
       lowestCutoutAltitude = Math.min(lowestCutoutAltitude, altitude);
     }
+
     const thrust = frame < cutoutUntilFrame ? 0 : maxThrust * throttle;
+    // lander.js _burnFuel
+    fuelUsed +=
+      (thrust / STANDARD_THRUST + Math.abs(command) * ROTATION_FUEL_RATE) *
+      INTERVAL;
 
     // lander.js _updateProps with deltaTimeMultiplier = 1
     position.y += velocity.y;
@@ -198,11 +222,19 @@ export const simulateLanding = ({
         gusts,
         cutouts,
         lowestCutoutAltitude,
+        fuelUsed: fuelUsed / preset.fuelCapacity,
       };
     }
   }
 
-  return { landed: false, timedOut: true, gusts, cutouts };
+  return {
+    landed: false,
+    timedOut: true,
+    gusts,
+    cutouts,
+    lowestCutoutAltitude,
+    fuelUsed: fuelUsed / preset.fuelCapacity,
+  };
 };
 
 export const summarize = (difficulty, runs = 50, options = {}) => {
@@ -222,6 +254,9 @@ export const summarize = (difficulty, runs = 50, options = {}) => {
     averageSpeed: average(landed.map((r) => r.speed)),
     worstTilt: Math.max(0, ...results.map((r) => r.maxTiltAfterRecovery ?? 0)),
     cutouts: results.reduce((sum, r) => sum + r.cutouts, 0),
+    // Share of the tank, 0 when the tank is unlimited
+    averageFuelUsed: average(landed.map((r) => r.fuelUsed)),
+    wouldRunDry: results.filter((r) => r.fuelUsed > 1).length,
     failures: results.filter((r) => !r.landed),
   };
 };

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeAutopilot, signedTiltDegrees } from "../lander/autopilot.js";
-import { DIFFICULTIES, ENGINE_CUTOUT } from "../helpers/rules.js";
+import { DIFFICULTIES } from "../helpers/rules.js";
 import { GRAVITY, LANDER_HEIGHT } from "../helpers/constants.js";
 import { simulateLanding, summarize } from "./landersim.mjs";
 
@@ -104,6 +104,7 @@ for (const [difficulty, minimum] of [
   ["easy", RUNS],
   ["medium", RUNS],
   ["hard", Math.ceil(RUNS * 0.8)],
+  ["extreme", Math.ceil(RUNS * 0.6)],
 ]) {
   test(`lands on a pad on ${difficulty} with a steady player`, () => {
     const result = summarize(difficulty, RUNS);
@@ -115,7 +116,7 @@ for (const [difficulty, minimum] of [
 }
 
 test("never tilts past the difficulty's limit without disturbances", () => {
-  for (const difficulty of ["easy", "medium", "hard"]) {
+  for (const difficulty of ["easy", "medium", "hard", "extreme"]) {
     const { maxTilt } = DIFFICULTIES[difficulty].autopilot;
     for (let seed = 1; seed <= 10; seed++) {
       const result = simulateLanding({ difficulty, seed, disturbances: false });
@@ -128,7 +129,7 @@ test("never tilts past the difficulty's limit without disturbances", () => {
 });
 
 test("touches down nearly level", () => {
-  for (const difficulty of ["easy", "medium", "hard"]) {
+  for (const difficulty of ["easy", "medium", "hard", "extreme"]) {
     for (let seed = 1; seed <= 10; seed++) {
       const result = simulateLanding({ difficulty, seed });
       if (result.timedOut) continue;
@@ -137,15 +138,36 @@ test("touches down nearly level", () => {
   }
 });
 
-test("engine cutouts happen on hard, never near the ground", () => {
-  let cutouts = 0;
-  for (let seed = 1; seed <= 20; seed++) {
-    const result = simulateLanding({ difficulty: "hard", seed });
-    cutouts += result.cutouts;
-    if (result.cutouts > 0) {
-      assert.ok(result.lowestCutoutAltitude >= ENGINE_CUTOUT.minAltitude);
+for (const difficulty of ["hard", "extreme"]) {
+  test(`engine cutouts happen on ${difficulty}, never near the ground`, () => {
+    const { minAltitude } = DIFFICULTIES[difficulty].engineCutouts;
+    let cutouts = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const result = simulateLanding({ difficulty, seed });
+      cutouts += result.cutouts;
+      if (result.cutouts > 0) {
+        assert.ok(result.lowestCutoutAltitude >= minAltitude);
+      }
     }
-  }
-  assert.ok(cutouts >= 10, `only ${cutouts} cutouts in 20 hard runs`);
+    assert.ok(cutouts >= 10, `only ${cutouts} cutouts in 20 ${difficulty} runs`);
+  });
+}
+
+test("no engine cutouts on medium", () => {
   assert.equal(simulateLanding({ difficulty: "medium", seed: 1 }).cutouts, 0);
+});
+
+test("extreme is harder than hard on every count", () => {
+  const { hard, extreme } = DIFFICULTIES;
+  assert.ok(extreme.fuelCapacity < hard.fuelCapacity);
+  assert.ok(extreme.launchScale > hard.launchScale);
+  assert.equal(extreme.largePad, false);
+  assert.ok(extreme.disturbances.durationMs > hard.disturbances.durationMs);
+  assert.ok(extreme.disturbances.maxIntervalMs < hard.disturbances.maxIntervalMs);
+  assert.ok(
+    extreme.engineCutouts.maxDurationMs > hard.engineCutouts.maxDurationMs
+  );
+  assert.ok(
+    extreme.engineCutouts.maxIntervalMs < hard.engineCutouts.maxIntervalMs
+  );
 });

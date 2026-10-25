@@ -16,6 +16,8 @@ const variants = [
   ["medium", {}],
   ["hard", {}],
   ["hard, no cutouts", { engineCutouts: false }],
+  ["extreme", {}],
+  ["extreme, no cutouts", { engineCutouts: false }],
 ];
 for (const [screen, size] of Object.entries(screens)) {
   for (const [label, options] of variants) {
@@ -30,6 +32,8 @@ for (const [screen, size] of Object.entries(screens)) {
       "avg speed": s.averageSpeed.toFixed(2),
       "worst tilt (°)": s.worstTilt.toFixed(1),
       cutouts: s.cutouts,
+      "fuel used": `${Math.round(s.averageFuelUsed * 100)}%`,
+      "would run dry": s.wouldRunDry,
     });
   }
 }

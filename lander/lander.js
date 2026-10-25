@@ -77,6 +77,8 @@ export const makeLander = (state, onGameEnd) => {
   let _fuel;
   let _nextDisturbanceAt;
   let _disturbanceShownUntil;
+  // The part of the current gust still to be applied, or null
+  let _gust;
   // A cutout leaves _engineOn alone, so it never reads as the player letting
   // go: engine starts, hoverslams and the sound all stay the player's own
   let _nextCutoutAt;
@@ -112,16 +114,28 @@ export const makeLander = (state, onGameEnd) => {
       y: LANDER_HEIGHT * 2,
     };
     _displayPosition = { ..._position };
+    // Scaled after drawing, so every difficulty takes the same draws from
+    // the stream and the daily challenge starts the same way, only harder.
+    // Downward speed is left alone: any faster, and a lander starting upside
+    // down on a wide screen hits the ground before it can be righted.
+    const { launchScale } = rules();
     _velocity = {
-      x: seededRandomBetween(
-        -_thrust * (canvasWidth / 10),
-        _thrust * (canvasWidth / 10),
-        seededRandom
-      ),
+      x:
+        launchScale *
+        seededRandomBetween(
+          -_thrust * (canvasWidth / 10),
+          _thrust * (canvasWidth / 10),
+          seededRandom
+        ),
       y: seededRandomBetween(0, _thrust * (canvasWidth / 10), seededRandom),
     };
-    _rotationVelocity = seededRandomBetween(-0.2, 0.2, seededRandom);
-    _angle = seededRandomBetween(Math.PI * 1.5, Math.PI * 2.5, seededRandom);
+    _rotationVelocity =
+      launchScale * seededRandomBetween(-0.2, 0.2, seededRandom);
+    _angle =
+      Math.PI * 2 +
+      launchScale *
+        (seededRandomBetween(Math.PI * 1.5, Math.PI * 2.5, seededRandom) -
+          Math.PI * 2);
     _engineOn = false;
     _rotatingLeft = false;
     _rotatingRight = false;
@@ -130,6 +144,7 @@ export const makeLander = (state, onGameEnd) => {
     _rotationCommand = 0;
     _nextDisturbanceAt = _disturbanceInterval();
     _disturbanceShownUntil = 0;
+    _gust = null;
     _nextCutoutAt = _cutoutInterval();
     _cutoutUntil = 0;
     _autopilot?.reset();
@@ -153,13 +168,14 @@ export const makeLander = (state, onGameEnd) => {
     _engineHeldToTouchdown = false;
   };
   function _disturbanceInterval() {
-    return randomBetween(DISTURBANCE.minIntervalMs, DISTURBANCE.maxIntervalMs);
+    const { minIntervalMs, maxIntervalMs } =
+      rules().disturbances || DISTURBANCE;
+    return randomBetween(minIntervalMs, maxIntervalMs);
   }
   function _cutoutInterval() {
-    return randomBetween(
-      ENGINE_CUTOUT.minIntervalMs,
-      ENGINE_CUTOUT.maxIntervalMs
-    );
+    const { minIntervalMs, maxIntervalMs } =
+      rules().engineCutouts || ENGINE_CUTOUT;
+    return randomBetween(minIntervalMs, maxIntervalMs);
   }
 
   resetProps();
@@ -357,7 +373,7 @@ export const makeLander = (state, onGameEnd) => {
         if (_rotatingLeft) _rotationVelocity -= deltaTimeMultiplier * 0.01;
       }
 
-      _applyDisturbance();
+      _applyDisturbance(deltaTime);
       _applyEngineCutout();
 
       _position.x += deltaTimeMultiplier * _velocity.x;
@@ -465,30 +481,52 @@ export const makeLander = (state, onGameEnd) => {
     }
   };
 
-  // A sudden push in position and rotation, on difficulties that have them.
-  // Held off near the ground, where the autopilot is levelling out for
-  // touchdown and has no tilt left to correct with.
-  const _applyDisturbance = () => {
-    if (!rules().disturbances || _timeSinceStart < _nextDisturbanceAt) return;
+  // A push in position and rotation, on difficulties that have them, either
+  // a single kick or spread over the gust's duration. Held off near the
+  // ground, where the autopilot is levelling out for touchdown and has no
+  // tilt left to correct with.
+  const _applyDisturbance = (deltaTime) => {
+    const disturbance = rules().disturbances;
+    if (!disturbance) return;
 
-    _nextDisturbanceAt = _timeSinceStart + _disturbanceInterval();
     const altitude =
       state.get("terrain").getGroundHeightAtX(_position.x) -
       (_position.y + LANDER_HEIGHT / 2);
-    if (altitude < DISTURBANCE.minAltitude) return;
+    if (altitude < disturbance.minAltitude) _gust = null;
 
-    const direction = () => (randomBool() ? 1 : -1);
-    _velocity.x += direction() * randomBetween(0.5, 1) * DISTURBANCE.maxPush;
-    _rotationVelocity +=
-      direction() * randomBetween(0.5, 1) * DISTURBANCE.maxSpin;
-    _disturbanceShownUntil = _timeSinceStart + 900;
+    if (_timeSinceStart >= _nextDisturbanceAt) {
+      _nextDisturbanceAt = _timeSinceStart + _disturbanceInterval();
+      if (altitude >= disturbance.minAltitude) {
+        const direction = () => (randomBool() ? 1 : -1);
+        _gust = {
+          push: direction() * randomBetween(0.5, 1) * disturbance.maxPush,
+          spin: direction() * randomBetween(0.5, 1) * disturbance.maxSpin,
+          remainingMs: disturbance.durationMs,
+        };
+        _disturbanceShownUntil =
+          _timeSinceStart + Math.max(900, disturbance.durationMs);
+      }
+    }
+
+    if (!_gust) return;
+    const share =
+      _gust.remainingMs > deltaTime ? deltaTime / _gust.remainingMs : 1;
+    const push = _gust.push * share;
+    const spin = _gust.spin * share;
+    _velocity.x += push;
+    _rotationVelocity += spin;
+    _gust.push -= push;
+    _gust.spin -= spin;
+    _gust.remainingMs -= deltaTime;
+    if (share === 1) _gust = null;
   };
 
   // Due cutouts wait for the engine to be on and the lander well clear of
   // the ground, then the engine dies for a moment
   const _applyEngineCutout = () => {
+    const cutout = rules().engineCutouts;
     if (
-      !rules().engineCutouts ||
+      !cutout ||
       !_engineOn ||
       _isCutOut() ||
       _timeSinceStart < _nextCutoutAt
@@ -499,11 +537,11 @@ export const makeLander = (state, onGameEnd) => {
     const altitude =
       state.get("terrain").getGroundHeightAtX(_position.x) -
       (_position.y + LANDER_HEIGHT / 2);
-    if (altitude < ENGINE_CUTOUT.minAltitude) return;
+    if (altitude < cutout.minAltitude) return;
 
     _cutoutUntil =
       _timeSinceStart +
-      randomBetween(ENGINE_CUTOUT.minDurationMs, ENGINE_CUTOUT.maxDurationMs);
+      randomBetween(cutout.minDurationMs, cutout.maxDurationMs);
     _nextCutoutAt = _cutoutUntil + _cutoutInterval();
     audioManager.playEngineFailure();
   };
@@ -527,7 +565,7 @@ export const makeLander = (state, onGameEnd) => {
       )
     );
 
-  // Hard mode's surprises, for both HUDs, most urgent first
+  // Hard and extreme's surprises, for both HUDs, most urgent first
   const _warnings = () =>
     [
       _isCutOut() && ["ENGINE FAIL", "rgb(255, 60, 60)"],
